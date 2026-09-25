@@ -1,16 +1,18 @@
 import { useState } from 'react'
+import { ConsulterNote } from './composants/ConsulterNote'
 import { DeposerExercice } from './composants/DeposerExercice'
 import { MarquerPresence } from './composants/MarquerPresence'
 import { NoterExercice } from './composants/NoterExercice'
 import { OuvrirSession } from './composants/OuvrirSession'
 import './App.css'
 
-type Onglet = 'formateur' | 'etudiant' | 'depot' | 'relecture'
+type Onglet = 'formateur' | 'etudiant' | 'depot' | 'relecture' | 'note'
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: 'formateur', libelle: 'Formateur · Ouvrir une session' },
   { cle: 'etudiant', libelle: 'Étudiant · Marquer ma présence' },
   { cle: 'depot', libelle: 'Étudiant · Déposer mon exercice' },
+  { cle: 'note', libelle: 'Étudiant · Consulter ma note' },
   { cle: 'relecture', libelle: 'Relecteur · Rendre ma relecture' },
 ]
 
@@ -48,6 +50,8 @@ function App() {
           <MarquerPresence />
         ) : onglet === 'depot' ? (
           <DeposerExercice />
+        ) : onglet === 'note' ? (
+          <ConsulterNote />
         ) : (
           <NoterExercice />
         )}

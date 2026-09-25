@@ -1,9 +1,11 @@
 package com.kf48.backend.controller;
 
 import com.kf48.backend.domain.Exercice;
+import com.kf48.backend.domain.Presence;
 import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
 import com.kf48.backend.repository.ExerciceRepository;
+import com.kf48.backend.repository.PresenceRepository;
 import com.kf48.backend.repository.RelectureRepository;
 import com.kf48.backend.repository.SessionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -34,6 +38,7 @@ class ExerciceControllerIntegrationTest {
     @Autowired private SessionRepository sessionRepository;
     @Autowired private ExerciceRepository exerciceRepository;
     @Autowired private RelectureRepository relectureRepository;
+    @Autowired private PresenceRepository presenceRepository;
 
     private Long sessionId;
 
@@ -155,4 +160,63 @@ class ExerciceControllerIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("RELECTEUR_DEJA_ASSIGNE"));
     }
+
+
+    // ---- EF8 / RG7 : consultation de sa note et de son commentaire ----
+
+    /** Depose un exercice, l'assigne a l'etudiant 2, et rend sa relecture. */
+    private Long exerciceNote() {
+        presenceRepository.save(new Presence(sessionId, 2L, Presence.Source.ETUDIANT));
+        Long id = exerciceRepository.save(new Exercice(sessionId, 1L, "https://github.com/e/1")).getId();
+        Relecture relecture = relectureRepository.save(new Relecture(id, 2L));
+        relecture.rendre(14, "Bon travail.");
+        return id;
+    }
+
+    @Test
+    void consulterRenvoie200AvecLaNoteEtLeCommentaire() throws Exception {
+        Long id = exerciceNote();
+
+        mockMvc.perform(get("/api/exercices/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                // DEPOSE et non EN_ATTENTE_RELECTURE : ici l'exercice est inséré via le
+                // repository, donc AssignationRelecteurService n'est pas passé par là.
+                // L'affectation en elle-même est couverte par AssignationRelecteurServiceTest.
+                .andExpect(jsonPath("$.statut").value("DEPOSE"))
+                .andExpect(jsonPath("$.note").value(14))
+                .andExpect(jsonPath("$.commentaire").value("Bon travail."));
+    }
+
+    @Test
+    void laConsultationNExposePasLIdentiteDuRelecteur() throws Exception { // RG7
+        Long id = exerciceNote();
+
+        // Le corps JSON complet ne doit contenir aucun champ identifiant le relecteur
+        String corps = mockMvc.perform(get("/api/exercices/" + id))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(corps.toLowerCase()).doesNotContain("relecteur");
+    }
+
+    @Test
+    void consulterAvantRenduRenvoie200SansNote() throws Exception {
+        Long id = exerciceRepository.save(new Exercice(sessionId, 1L, "https://github.com/e/1")).getId();
+
+        mockMvc.perform(get("/api/exercices/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.statut").value("DEPOSE"))
+                .andExpect(jsonPath("$.note").doesNotExist())
+                .andExpect(jsonPath("$.commentaire").doesNotExist());
+    }
+
+    @Test
+    void consulterUnExerciceInconnuRenvoie404() throws Exception {
+        mockMvc.perform(get("/api/exercices/999999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("EXERCICE_INCONNUE"));
+    }
+
 }
