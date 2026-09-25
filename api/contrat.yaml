@@ -124,6 +124,7 @@ paths:
         "200": { description: Relecture enregistrée }
         "400": { $ref: "#/components/responses/Erreur" }   # NOTE_INVALIDE
         "403": { $ref: "#/components/responses/Erreur" }   # AUTO_RELECTURE
+        "404": { $ref: "#/components/responses/Erreur" }   # RELECTURE_INCONNUE
         "409": { $ref: "#/components/responses/Erreur" }   # RELECTURE_DEJA_RENDUE
 
     # ---- Ajout : correction de note (EF7, RG9) ----

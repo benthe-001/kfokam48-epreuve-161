@@ -36,6 +36,16 @@ public class Relecture {
         this.attribueeAt = OffsetDateTime.now();
     }
 
+    /**
+     * EF6 / RG8 : le relecteur rend sa note et son commentaire.
+     * Renseigner rendueAt verrouille la relecture (elle ne peut plus être rendue ni corrigée).
+     */
+    public void rendre(Integer note, String commentaire) {
+        this.note = note;
+        this.commentaire = commentaire;
+        this.rendueAt = OffsetDateTime.now();
+    }
+
     public Long getId() { return id; }
     public Long getExerciceId() { return exerciceId; }
     public Long getRelecteurId() { return relecteurId; }

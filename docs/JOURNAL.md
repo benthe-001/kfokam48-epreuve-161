@@ -152,7 +152,7 @@ Limite : le cas « le blocage lève après 2 minutes » n'est pas couvert par un
 automatique (il faudrait 2 minutes d'attente ou une horloge injectable) ; la logique
 de `estBloque()` n'est donc vérifiée qu'indirectement.
 
-## Étape 7 — Ticket #4 : déposer son exercice (EF4, RG11, RG19)
+## Étape 7 — Ticket #4 : déposer son exercice (EF3, RG11, RG19)
 
 Fait : `POST /api/exercices` en couches contrôleur / service / repository, avec la
 table `exercice` déjà prévue par `V1__schema.sql` (contrainte
@@ -219,7 +219,7 @@ peut pas prédire *qui* est désigné. Les tests vérifient donc des propriété
 (l'auteur n'est jamais choisi, un seul relecteur par exercice, l'exercice reste
 `DEPOSE` quand personne n'est disponible) plutôt que le résultat exact.
 
-## Étape 9 — Ticket #5 : remplacer le lien de son exercice (EF5, RG12)
+## Étape 9 — Ticket #5 : remplacer le lien de son exercice (EF4, RG12)
 
 Fait : `PUT /api/exercices/{id}`, un DTO de requête validé, une méthode
 `ExerciceService.remplacerLien` et une transition de domaine
@@ -244,5 +244,48 @@ le build complet du backend et du frontend.
 Limite : l'effet du remplacement n'a pas été vérifié depuis un vrai navigateur,
 le frontend n'ayant pas de tests automatisés à ce stade ; le build `tsc` et le
 lint passent, et l'appel HTTP est couvert côté intégration.
+
+
+## Étape 10 — Ticket #7 : le relecteur note et commente (EF6, RG5, RG8)
+
+Fait : `POST /api/relectures/{id}`, un service `RelectureService`, le DTO validé
+`RendreRelectureRequest` et la réponse `RelectureResponse`. La transition de domaine
+`Relecture.rendre(...)` renseigne la note, le commentaire et `rendue_at`, ce qui
+verrouille définitivement la relecture ; `Exercice.marquerNote()` fait passer
+l'exercice à `NOTE`. Ordre des contrôles : 404 `RELECTURE_INCONNUE` → 403
+`AUTO_RELECTURE` → 409 `RELECTURE_DEJA_RENDUE`. Le 404 `RELECTURE_INCONNUE` a été
+ajouté au `contrat.yaml`, qui ne le documentait pas sur cette route. 17 tests ajoutés
+(9 côté service, 8 côté contrôleur) — le total passe à 60, tous verts. Côté frontend,
+un quatrième onglet *Relecteur · Rendre ma relecture* avec validation de la note.
+
+Bloqué : trois erreurs de ma part, trouvées par les tests et non par la relecture du
+code. La première est la plus instructive : j'avais écrit `@Digits(integer = 1,
+fraction = 0)` pour rejeter les décimales, en croyant limiter la note à un seul
+chiffre — la note 20 et même 15 se retrouvaient rejetées en `NOTE_INVALIDE`, ce qui
+casse quatre tests d'un coup. Le paramètre `integer` compte les chiffres **avant** la
+virgule, pas la valeur : il fallait `integer = 2`. La deuxième : mon test des bornes
+rendait deux fois **la même** relecture, alors qu'une relecture ne se rend qu'une fois —
+le 409 était le comportement correct, c'est le test qui était faux. La troisième :
+pour fabriquer une auto-relecture, je créais une seconde relecture sur le même
+exercice, et `uk_relecture_exercice` (RG5) l'a refusée ; il a fallu passer par un
+autre exercice *et* un autre auteur, car `uk_exercice_session_etudiant` (RG19) bloque
+aussi le doublon. Ces trois echecs ont au passage confirme que les contraintes RG5 et
+RG19 sont bien actives en base.
+
+IA : m'a aidé sur le choix du type du champ `note`. Un `Integer` aurait rejeté `12.5`
+au moment de la désérialisation JSON, ce qui produit un 400 `REQUETE_INCONNUE` — un
+code générique — alors que le ticket exige explicitement `NOTE_INVALIDE` pour toute
+note non entière. Un `BigDecimal` validé par `@Digits` permet de rejeter la décimale
+avec le bon code. Vérifié par un test dédié (`noteNonEntiereRenvoie400NOTE_INVALIDE`),
+puis par la suite complète et le build frontend.
+
+Limite : le contrôle d'auto-relecture ne peut pas se produire par le chemin normal,
+puisque l'assignation exclut l'auteur (RG4) : le test le fabrique volontairement en
+base. C'est un garde-fou, pas une règle atteignable en production tant que l'auto-
+relecture est impossible en amont. Par ailleurs, l'endpoint identifie le relecteur par
+l'assignation et non par une authentification, le projet n'en ayant pas encore ; le
+`403` est donc cohérent mais ne protège pas d'un vrai appelant malveillant. Enfin,
+comme pour les étapes précédentes, l'écran n'a pas été vérifié dans un navigateur :
+build `tsc` et lint passent, l'appel HTTP est couvert côté intégration.
 
 

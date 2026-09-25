@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 43 tests : 42 unitaires/intégration + contexte
+./mvnw.cmd test                  # 60 tests : 59 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -95,7 +95,7 @@ bloqué 2 minutes (429 `ETUDIANT_BLOQUE`), tous codes confondus ; le compteur es
 remis à zéro dès la première présence réussie. `CODE_EXPIRE` et `DEJA_PRESENT`
 ne comptent pas : ils prouvent que l'étudiant connaissait déjà un code valide.
 
-**EF4** (RG11, RG19) : le dépôt d'un exercice accepte le lien `http`/`https`,
+**EF3** (RG11, RG19) : le dépôt d'un exercice accepte le lien `http`/`https`,
 et le reste possible après l'expiration du code (RG11) tant que la session n'est
 pas explicitement clôturée. Refus : lien non conforme (400 `LIEN_INVALIDE`),
 session inexistante (404), session clôturée (409 `SESSION_CLOTUREE`) ou dépôt
@@ -109,19 +109,28 @@ exercice n'a qu'un seul relecteur (RG5), et si aucun autre étudiant n'est
 présent l'exercice reste `DEPOSE` — l'assignation est retentée à la présence
 suivante (RG6).
 
-**EF5** (EF4, RG12) : `PUT /api/exercices/{id}` remplace le lien de l'exercice.
+**EF4 — ticket #5** (RG12) : `PUT /api/exercices/{id}` remplace le lien de l'exercice.
 Accepté tant qu'aucun relecteur n'est assigné ; refusé (409
 `RELECTEUR_DEJA_ASSIGNE`) dès l'assignation, même si la relecture n'a pas encore
 été rendue. La colonne `modifie_at` est mise à jour.
 
-Le frontend expose trois écrans dans une navigation à onglets : *Formateur ·
-Ouvrir une session*, *Étudiant · Marquer ma présence* et *Étudiant · Déposer mon
-exercice*. L'écran de présence gère aussi le blocage RG3 (bouton désactivé avec
-décompte du temps restant) ; l'écran de dépôt permet de remplacer son lien, et
-affiche pourquoi le remplacement devient indisponible dès qu'un relecteur est
-assigné.
+**EF6 — ticket #7** (RG5, RG8) : `POST /api/relectures/{id}` enregistre la note
+(entière, de 0 à 20) et le commentaire du relecteur, et fait passer l'exercice au
+statut `NOTE`. Refus : note hors bornes ou non entière (400 `NOTE_INVALIDE`),
+auto-relecture (403 `AUTO_RELECTURE`), relecture déjà rendue (409
+`RELECTURE_DEJA_RENDUE`), relecture inexistante (404 `RELECTURE_INCONNUE`).
+L'identité du relecteur n'apparaît jamais dans la réponse (RG7), et une relecture
+rendue est définitive.
 
-Restant à faire : EF6 à EF11 (rendre une relecture, note, affectation de plusieurs
+Le frontend expose quatre écrans dans une navigation à onglets : *Formateur ·
+Ouvrir une session*, *Étudiant · Marquer ma présence*, *Étudiant · Déposer mon
+exercice* et *Relecteur · Rendre ma relecture*. L'écran de présence gère aussi le
+blocage RG3 (bouton désactivé avec décompte du temps restant) ; l'écran de dépôt
+permet de remplacer son lien, et affiche pourquoi le remplacement devient
+indisponible dès qu'un relecteur est assigné ; l'écran de relecture valide la note
+côté client et affiche la note obtenue sur 20.
+
+Restant à faire : EF7 à EF11 (correction de note, affectation de plusieurs
 relecteurs, clôture de session, tableau récapitulatif).
 
 ## Format des erreurs
