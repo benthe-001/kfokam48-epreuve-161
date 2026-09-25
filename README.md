@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 103 tests : 102 unitaires/intégration + contexte
+./mvnw.cmd test                  # 117 tests : 116 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -151,17 +151,28 @@ pas être ajouté deux fois (409 `DEJA_PRESENT`), et un identifiant inconnu renv
 404. Comme tout marquage de présence, l'ajout manuel déclenche une nouvelle
 tentative d'assignation d'un relecteur (RG6).
 
-Le frontend expose cinq écrans dans une navigation à onglets : *Formateur ·
+**EF11 — ticket #12** (RG10, RG15) : `GET /api/tableau?promotionId=` renvoie une
+ligne par étudiant de la promotion : présences, exercices déposés, moyenne et
+relectures encore à rendre. RG15 : la moyenne ne porte que sur les exercices
+notés, toutes sessions de la promotion confondues, et vaut `null` — jamais `0` —
+si l'étudiant n'a aucun exercice noté. RG10 : les relectures non rendues sont
+visibles via `relecturesEnAttente`. Une promotion inconnue renvoie 404
+`PROMOTION_INCONNUE`. Le tableau est calculé par quatre requêtes d'agrégation,
+sans boucle qui interroge la base.
+
+Le frontend expose six écrans dans une navigation à onglets : *Formateur ·
 Ouvrir une session* (avec le bouton de clôture et l'ajout manuel d'une présence),
-*Étudiant · Marquer ma présence*, *Étudiant · Déposer mon exercice*, *Étudiant ·
-Consulter ma note* et *Relecteur · Rendre ma relecture*. L'écran de présence gère
+*Formateur · Tableau récapitulatif*, *Étudiant · Marquer ma présence*, *Étudiant ·
+Déposer mon exercice*, *Étudiant · Consulter ma note* et *Relecteur · Rendre ma
+relecture*. L'écran de présence gère
 aussi le blocage RG3 (bouton désactivé avec décompte du temps restant) ; l'écran de
 dépôt permet de remplacer son lien, et affiche pourquoi le remplacement devient
 indisponible dès qu'un relecteur est assigné ; l'écran de relecture valide la note
 côté client, affiche la note obtenue sur 20 et permet de la corriger ; l'écran de
 consultation affiche « Pas encore notée » tant que la relecture n'est pas rendue.
 
-Restant à faire : EF11 (tableau récapitulatif par étudiant pour le formateur).
+Backlog terminé : les onze fonctionnalités EF1 à EF11 du cahier des charges sont
+implémentées, testées et documentées.
 
 ## Format des erreurs
 

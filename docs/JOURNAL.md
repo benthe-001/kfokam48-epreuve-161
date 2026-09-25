@@ -458,3 +458,50 @@ authentification, n'importe qui peut appeler cet endpoint et marquer n'importe
 quel étudiant présent.
 
 
+## Étape 15 — Ticket #12 : le tableau récapitulatif (EF11, RG10, RG15)
+
+Fait : `GET /api/tableau?promotionId=`, le DTO `LigneTableauResponse`, le
+`TableauService` et son contrôleur. Le tableau est une **agrégation** : quatre
+requêtes JPQL `group by` (présences, exercices, moyennes, relectures en attente)
+ramènent des couples (clé, valeur) que le service indexe, puis une ligne est
+construite par étudiant. Cinq requêtes au total, quel que soit l'effectif : pas
+de boucle qui requête la base, ce qui aurait été un N+1. 14 tests ajoutés
+(10 côté service, 4 côté contrôleur) — le total passe à 117, tous verts. Côté
+frontend, un sixième onglet *Formateur · Tableau récapitulatif* affiche le
+récapitulatif en tableau HTML avec les en-têtes `scope="col"`.
+
+RG15 : la moyenne ne porte que sur les exercices **rendus et notés**, toutes
+sessions confondues de la promotion. Un test le prouve par le chiffre : deux
+exercices notés 10 et 16 donnent 13, et un exercice assigné mais non rendu est
+exclu de la moyenne sans faire baisser celle-ci. La moyenne vaut **null** et non
+0 quand rien n'est noté — un 0 se lirait comme une moyenne nulle, ce qui est une
+autre information. Le contrat le prévoyait (`nullable: true`), et le test
+d'intégration vérifie que le champ est absent du JSON.
+
+RG10 : « les exercices sans relecture rendue restent visibles comme tel dans le
+tableau » est rendu par la colonne `relecturesEnAttente`, qui compte les
+relectures que l'étudiant doit encore rendre. C'est une lecture possible de
+RG10, pas la seule : l'autre aurait été une colonne supplémentaire absente du
+contrat. Je l'ai signalée au commanditaire plutôt que de modifier le contrat.
+
+Bloqué : il manquait `PromotionRepository` (pour distinguer une promotion
+inconnue, `404 PROMOTION_INCONNUE`) et l'entité `Etudiant` a dû être enrichie
+d'un `findByPromotionIdOrderById`. Les requêtes d'agrégation ne passent pas par
+des relations JPA : `Exercice` et `Relecture` ne se connaissent que par des clés
+étrangères, sans champ de navigation. J'ai donc écrit un produit cartésien avec
+un filtre d'égalité (`from Exercice e, Relecture r where r.exerciceId = e.id`)
+plutôt qu'un `JOIN ... ON`, qui n'est pas supporté par HQL portable ici. Les
+deux sont équivalents pour la base, et le test sur la moyenne confirme le
+résultat.
+
+IA : m'a aidé sur le choix `null` contre `0` pour la moyenne, qui n'est visible
+que si on se demande ce que signifierait un 0 affiché dans un tableau scolaire.
+Un « 0 / 20 » se lit comme « il a eu zéro partout », pas comme « rien n'a été
+noté encore ».
+
+Limite : une promotion sans session renvoie ses étudiants avec des compteurs à
+zéro — c'est un choix, testé, mais le contrat ne le dit pas. Et le tableau est
+calculé à chaque appel, sans mise en cache : suffisant ici, à revoir si le
+nombre de sessions devenait important.
+
+

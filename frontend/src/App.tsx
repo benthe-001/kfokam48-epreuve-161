@@ -4,12 +4,14 @@ import { DeposerExercice } from './composants/DeposerExercice'
 import { MarquerPresence } from './composants/MarquerPresence'
 import { NoterExercice } from './composants/NoterExercice'
 import { OuvrirSession } from './composants/OuvrirSession'
+import { TableauRecapitulatif } from './composants/TableauRecapitulatif'
 import './App.css'
 
-type Onglet = 'formateur' | 'etudiant' | 'depot' | 'relecture' | 'note'
+type Onglet = 'formateur' | 'tableau' | 'etudiant' | 'depot' | 'note' | 'relecture'
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: 'formateur', libelle: 'Formateur · Ouvrir une session' },
+  { cle: 'tableau', libelle: 'Formateur · Tableau récapitulatif' },
   { cle: 'etudiant', libelle: 'Étudiant · Marquer ma présence' },
   { cle: 'depot', libelle: 'Étudiant · Déposer mon exercice' },
   { cle: 'note', libelle: 'Étudiant · Consulter ma note' },
@@ -46,6 +48,8 @@ function App() {
       >
         {onglet === 'formateur' ? (
           <OuvrirSession />
+        ) : onglet === 'tableau' ? (
+          <TableauRecapitulatif />
         ) : onglet === 'etudiant' ? (
           <MarquerPresence />
         ) : onglet === 'depot' ? (
