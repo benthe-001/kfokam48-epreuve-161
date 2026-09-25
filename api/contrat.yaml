@@ -127,29 +127,10 @@ paths:
         "404": { $ref: "#/components/responses/Erreur" }   # RELECTURE_INCONNUE
         "409": { $ref: "#/components/responses/Erreur" }   # RELECTURE_DEJA_RENDUE
 
-    # ---- Ajout : correction de note (EF7, RG9) ----
-    put:
-      summary: Le relecteur corrige une note déjà envoyée, tant que la session n'est pas clôturée
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer, format: int64 }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [note, commentaire]
-              properties:
-                note: { type: integer, minimum: 0, maximum: 20 }
-                commentaire: { type: string }
-      responses:
-        "200": { description: Relecture corrigée }
-        "400": { $ref: "#/components/responses/Erreur" }   # NOTE_INVALIDE
-        "404": { $ref: "#/components/responses/Erreur" }   # RELECTURE_INCONNUE
-        "409": { $ref: "#/components/responses/Erreur" }   # SESSION_CLOTUREE
+    # ---- EF7 (correction de note, RG9) RETIRE du perimetre v0.2, voir issue #27 ----
+    # Avec deux relecteurs par exercice, la correction est ambigue (laquelle des
+    # deux notes ? moyenne a recalculer ? provisoire a repasser a true ?).
+    # L'operation est retiree plutot que laissee a moitie definie.
 
   /api/tableau:
     get:
@@ -252,7 +233,7 @@ paths:
         "409": { $ref: "#/components/responses/Erreur" }   # RELECTEUR_DEJA_ASSIGNE
 
     get:
-      summary: L'étudiant consulte sa note et son commentaire (EF8, RG7)
+      summary: L'étudiant consulte sa note et son commentaire (EF8, RG7, RG17, RG18)
       parameters:
         - name: id
           in: path
@@ -260,19 +241,23 @@ paths:
           schema: { type: integer, format: int64 }
       responses:
         "200":
-          description: Détail de l'exercice, sans identité du relecteur
+          description: |
+            Détail de l'exercice, sans identité du relecteur.
+            note = moyenne des deux relectures rendues (RG17).
+            noteProvisoire = true quand un seul relecteur a rendu (RG18).
           content:
             application/json:
               schema:
                 type: object
-                required: [id, sessionId, etudiantId, lien, statut]
+                required: [id, sessionId, etudiantId, lien, statut, noteProvisoire]
                 properties:
                   id: { type: integer, format: int64 }
                   sessionId: { type: integer, format: int64 }
                   etudiantId: { type: integer, format: int64 }
                   lien: { type: string, format: uri }
                   statut: { type: string, enum: [DEPOSE, EN_ATTENTE_RELECTURE, NOTE] }
-                  note: { type: integer, nullable: true }
+                  note: { type: number, nullable: true }
+                  noteProvisoire: { type: boolean }
                   commentaire: { type: string, nullable: true }
         "404": { $ref: "#/components/responses/Erreur" }   # EXERCICE_INCONNU
 
