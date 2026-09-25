@@ -1,0 +1,56 @@
+# Dockerisation du projet KFOKAM48 - relectures
+# Démarrage : docker compose up --build
+#   - frontend React/Vite servi par nginx  -> http://localhost:8081
+#   - backend Spring Boot (API)            -> http://localhost:8080
+#   - PostgreSQL (données sur volume pgdata)
+#
+# Le backend lit les variables DB_URL / DB_USER / DB_PASSWORD
+# (valeurs par défaut dans application.properties et Dockerfile).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: relectures
+      POSTGRES_USER: relectures
+      POSTGRES_PASSWORD: relectures
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relectures -d relectures"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/relectures
+      DB_USER: relectures
+      DB_PASSWORD: relectures
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8080'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:

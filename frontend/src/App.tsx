@@ -1,121 +1,139 @@
 import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import type { SessionOuverte } from './api/sessions'
+import { ouvrirSession } from './api/sessions'
+import { ErreurApi } from './api/client'
 import './App.css'
 
+interface Promotion {
+  id: number
+  nom: string
+}
+
+// Données de démonstration du backend (migration V2__demo_data.sql)
+const PROMOTIONS: Promotion[] = [
+  { id: 1, nom: '2025-2026 B3 Développement' },
+  { id: 2, nom: '2025-2026 B3 Cybersécurité' },
+]
+
+function formaterDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [titre, setTitre] = useState('')
+  const [promotionId, setPromotionId] = useState(PROMOTIONS[0].id)
+  const [enCours, setEnCours] = useState(false)
+  const [session, setSession] = useState<SessionOuverte | null>(null)
+  const [erreur, setErreur] = useState<string | null>(null)
+
+  async function soumettre() {
+    if (enCours) return
+    setEnCours(true)
+    setSession(null)
+    setErreur(null)
+    try {
+      const ouverte = await ouvrirSession(titre.trim(), promotionId)
+      setSession(ouverte)
+    } catch (e) {
+      if (e instanceof ErreurApi) {
+        setErreur(`${e.code} — ${e.message}`)
+      } else {
+        setErreur('Erreur inattendue.')
+      }
+    } finally {
+      setEnCours(false)
+    }
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
+    <main className="page">
+      <h1>Ouvrir une session</h1>
+      <p className="sous-titre">
+        RG1 : la session expire 15 minutes après son ouverture ·&nbsp;
+        RG17 : un code unique est généré.
+      </p>
+
+      <form
+        className="formulaire"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void soumettre()
+        }}
+      >
+        <label className="champ">
+          Titre de la séance
+          <input
+            type="text"
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="ex. Révision examen"
+            required
+            maxLength={200}
+            autoFocus
+          />
+        </label>
+
+        <label className="champ">
+          Promotion
+          <select
+            value={promotionId}
+            onChange={(e) => setPromotionId(Number(e.target.value))}
+          >
+            {PROMOTIONS.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nom}
+              </option>
+            ))}
+          </select>
+        </label>
+
         <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+          type="submit"
+          className="action"
+          disabled={enCours || titre.trim() === ''}
         >
-          Count is {count}
+          {enCours ? 'Ouverture…' : 'Ouvrir la session'}
         </button>
-      </section>
+      </form>
 
-      <div className="ticks"></div>
+      {erreur && (
+        <p className="erreur" role="alert">
+          {erreur}
+        </p>
+      )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {session && (
+        <section className="session-ouverte" aria-live="polite">
+          <h2>Session ouverte</h2>
+          <p className="code">
+            Code de présence : <strong>{session.code}</strong>
+          </p>
+          <dl>
+            <div>
+              <dt>Identifiant</dt>
+              <dd>{session.id}</dd>
+            </div>
+            <div>
+              <dt>Ouverture</dt>
+              <dd>{formaterDate(session.ouvertureAt)}</dd>
+            </div>
+            <div>
+              <dt>Expiration</dt>
+              <dd>{formaterDate(session.expirationAt)}</dd>
+            </div>
+          </dl>
+        </section>
+      )}
+    </main>
   )
 }
 

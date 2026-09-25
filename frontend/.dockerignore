@@ -1,0 +1,18 @@
+# Dépendances / artefacts de build
+node_modules/
+dist/
+.vite/
+coverage/
+
+# VCS / IDE
+.git
+.idea/
+.vscode/
+*.iml
+
+# Secrets / locaux
+.env
+.env.*
+
+# Logs
+*.log

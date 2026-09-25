@@ -1,2 +1,3 @@
--- Testdata (profil test uniquement) : promotion de reference ciblee par les tests via promotion_id = 1
-INSERT INTO promotion (id, nom) VALUES (1, 'Test');
+-- Testdata (profil test uniquement) : la promotion id=1 est fournie par V2 ;
+-- on force un libellé explicite de test (seul l'identifiant importe pour les tests).
+UPDATE promotion SET nom = 'Test' WHERE id = 1;
