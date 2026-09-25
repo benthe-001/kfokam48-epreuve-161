@@ -3,6 +3,7 @@ package com.kf48.backend.controller;
 import com.kf48.backend.domain.Exercice;
 import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
+import com.kf48.backend.dto.RendreRelectureRequest;
 import com.kf48.backend.repository.ExerciceRepository;
 import com.kf48.backend.repository.RelectureRepository;
 import com.kf48.backend.repository.SessionRepository;
@@ -21,6 +22,7 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // @Transactional : la base H2 de test est partagee entre les classes (DB_CLOSE_DELAY=-1).
@@ -137,5 +139,71 @@ class RelectureControllerIntegrationTest {
                         .content("{\"note\":15}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CHAMP_MANQUANT"));
+    }
+
+    // ---- EF7 / RG9 : correction d'une note déjà envoyée ----
+
+    private void rendreLaRelecture(int note) {
+        relectureService.rendre(relectureId,
+                new RendreRelectureRequest(BigDecimal.valueOf(note), "Première version."));
+    }
+
+    private void cloturerLaSession() {
+        sessionRepository.findById(sessionId).orElseThrow().cloturer();
+    }
+
+    @Test
+    void corrigerRenvoie200() throws Exception {
+        rendreLaRelecture(10);
+
+        mockMvc.perform(put("/api/relectures/" + relectureId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":17,\"commentaire\":\"Note revue\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.note").value(17))
+                .andExpect(jsonPath("$.commentaire").value("Note revue"));
+    }
+
+    @Test
+    void corrigerApresClotureRenvoie409SESSION_CLOTUREE() throws Exception { // RG9
+        rendreLaRelecture(10);
+        cloturerLaSession();
+
+        mockMvc.perform(put("/api/relectures/" + relectureId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":17,\"commentaire\":\"Note revue\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SESSION_CLOTUREE"));
+    }
+
+    @Test
+    void corrigerAvecUneNoteHorsBornesRenvoie400NOTE_INVALIDE() throws Exception { // RG8
+        rendreLaRelecture(10);
+
+        mockMvc.perform(put("/api/relectures/" + relectureId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":25,\"commentaire\":\"Trop\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("NOTE_INVALIDE"));
+    }
+
+    @Test
+    void corrigerAvecUneNoteNonEntiereRenvoie400NOTE_INVALIDE() throws Exception { // RG8
+        rendreLaRelecture(10);
+
+        mockMvc.perform(put("/api/relectures/" + relectureId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":7.5,\"commentaire\":\"Decimale\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("NOTE_INVALIDE"));
+    }
+
+    @Test
+    void corrigerUneRelectureInconnueRenvoie404() throws Exception {
+        mockMvc.perform(put("/api/relectures/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"note\":17,\"commentaire\":\"Note revue\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("RELECTURE_INCONNUE"));
     }
 }

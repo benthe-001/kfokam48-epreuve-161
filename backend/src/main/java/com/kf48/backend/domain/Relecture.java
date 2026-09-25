@@ -46,6 +46,17 @@ public class Relecture {
         this.rendueAt = OffsetDateTime.now();
     }
 
+    /**
+     * EF7 / RG9 : le relecteur corrige sa note deja rendue, tant que la session
+     * n'est pas cloturee. rendueAt n'est PAS modifie : cette colonne indique quand la
+     * relecture a ete rendue pour la premiere fois, et le schema ne prevoit pas
+     * d'horodatage de correction.
+     */
+    public void corriger(Integer note, String commentaire) {
+        this.note = note;
+        this.commentaire = commentaire;
+    }
+
     public Long getId() { return id; }
     public Long getExerciceId() { return exerciceId; }
     public Long getRelecteurId() { return relecteurId; }
