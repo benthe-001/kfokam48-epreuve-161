@@ -99,7 +99,8 @@ paths:
                   id: { type: integer, format: int64 }
                   statut: { type: string }
         "400": { $ref: "#/components/responses/Erreur" }   # LIEN_INVALIDE
-        "409": { $ref: "#/components/responses/Erreur" }   # EXERCICE_DEJA_DEPOSE
+        "404": { $ref: "#/components/responses/Erreur" }   # SESSION_INCONNUE
+        "409": { $ref: "#/components/responses/Erreur" }   # EXERCICE_DEJA_DEPOSE ou SESSION_CLOTUREE
 
   /api/relectures/{id}:
     post:

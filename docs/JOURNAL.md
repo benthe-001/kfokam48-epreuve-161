@@ -151,3 +151,42 @@ ligne à `echecs = 0`.
 Limite : le cas « le blocage lève après 2 minutes » n'est pas couvert par un test
 automatique (il faudrait 2 minutes d'attente ou une horloge injectable) ; la logique
 de `estBloque()` n'est donc vérifiée qu'indirectement.
+
+## Étape 7 — Ticket #4 : déposer son exercice (EF4, RG11, RG19)
+
+Fait : `POST /api/exercices` en couches contrôleur / service / repository, avec la
+table `exercice` déjà prévue par `V1__schema.sql` (contrainte
+`uk_exercice_session_etudiant` = RG19) : aucune migration n'a été nécessaire.
+Le service teste l'existence de la session (404 `SESSION_INCONNUE`), puis sa
+clôture (409 `SESSION_CLOTUREE`), puis le dépôt déjà effectué (409
+`EXERCICE_DEJA_DEPOSE`) ; le statut initial est `DEPOSE`, l'assignation d'un
+relecteur (RG6) restant prévue pour le ticket #6. Le contrôleur documente les
+4 statuts dans Swagger, et le contrat `api/contrat.yaml` gagne les 404 et 409
+qui manquaient. Côté frontend : `api/exercices.ts`, l'onglet « Étudiant · Déposer
+mon exercice » et le composant `DeposerExercice` (3e onglet). Le lien est validé
+par `@Pattern` côté serveur et `type="url"` côté navigateur. 27 tests au total.
+
+Bloqué : la compilation a échoué sur un `cannot find symbol: variable termee`
+alors que la variable était déclarée trois lignes plus haut. Après avoir écarté
+un problème d'encodage (un seul caractère accentué dans tout le fichier, et le
+`pom.xml` hérite de `sourceEncoding=UTF-8` du parent Spring Boot), un `mvn clean
+test` a reproduit l'erreur : la cause réelle était une coquille dans mon propre
+code, la variable était déclarée `sessionTerminee` mais utilisée `termee`. Le
+message du compilateur était donc correct ; c'est ma relecture initiale du
+fichier qui avait été trompeuse, les deux identifiants ne se distinguaient pas
+à l'œil sur la ligne de déclaration.
+
+IA : m'a fourni le squelette des 6 classes, que j'ai recopié tel quel ; j'ai
+ajouté le contrôleur annoté Swagger et les tests (5 service + 5 intégration). La
+correction de la coquille ci-dessus a été trouvée par comparaison octet par
+octet du fichier (scan des caractères de contrôle, fins de ligne, caractères
+non-ASCII) après l'échec des vérifications plus évidentes. Vérifié en
+lançant la suite complète (`mvnw.cmd test` : 27/27) et le build frontend
+(`npm run build`, `npm run lint` : 0 erreur).
+
+Limite : la vérification `SESSION_CLOTUREE` est écrite et couverte par le service,
+mais aucun test ne la déclenche car l'endpoint de clôture (ticket #10) n'existe
+pas encore : le scénario n'est atteignable que le jour où #10 existera. Le dépôt
+après expiration du code (RG11), qui est le cœur du ticket, est en revanche
+couvert par un test dédié.
+

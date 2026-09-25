@@ -51,4 +51,7 @@ public class SessionCours {
     public String getCode() { return code; }
     public OffsetDateTime getOuvertureAt() { return ouvertureAt; }
     public OffsetDateTime getExpirationAt() { return expirationAt; }
+
+    /** RG14 : la session reste ouverte jusqu'a sa cloture explicite (endpoint du ticket #10). */
+    public Statut getStatut() { return statut; }
 }
