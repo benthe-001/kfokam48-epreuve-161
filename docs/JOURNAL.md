@@ -407,3 +407,54 @@ navigateur : build `tsc` et lint passent, et les trois cas HTTP de la clôture
 sont couverts par des tests d'intégration.
 
 
+## Étape 14 — Ticket #11 : le formateur ajoute une présence manuelle (EF10, RG13)
+
+Fait : `POST /api/sessions/{id}/presences`, `PresenceService.ajouterManuellement` et le
+DTO `AjouterPresenceRequest`. La présence créée porte `source=FORMATEUR`. RG13 est
+implémenté par une **absence volontaire** de contrôle : la méthode ne teste jamais
+l'expiration du code. Le test correspondant ouvre une session dont le code a expiré
+depuis deux heures et vérifie que l'ajout passe. 12 tests ajoutés (7 côté service,
+5 côté contrôleur) — le total passe à 103, tous verts. Côté frontend, l'écran
+*Ouvrir une session* permet d'ajouter une présence manuelle, bouton désactivé dès
+que la session est close.
+
+Bloqué : il n'existait **aucune entité `Etudiant`** alors que le contrat exige de
+renvoyer `400 ETUDIANT_INCONNU` — impossible de distinguer un identifiant inconnu
+d'une présence valide sans pouvoir consulter la table. J'ai donc créé une entité
+`Etudiant` minimale et son repository, plutôt que de passer par une requête SQL
+native : le reste du projet accède aux données par ses repositories, et une
+entité sans règle de gestion reste inoffensive. EF11 pourra l'enrichir (nom,
+promotion) sans casser l'existant.
+
+RG6 : l'ajout manuel déclenche aussi une tentative d'assignation. Le CDC dit
+« l'assignation est rejouée à chaque nouvelle présence enregistrée sur la session »,
+sans distinguer l'origine — un étudiant que le formateur a rattrapé est un présent
+aussi légitime qu'un autre. Un test le prouve de bout en bout.
+
+Deux points où j'ai suivi le contrat contre mon réflexe, et il faut le signaler :
+`ETUDIANT_INCONNU` renvoie **400**, pas 404, alors qu'une ressource absente appelle
+naturellement un 404 ; et l'ordre des contrôles place l'étudiant inconnu avant la
+session close. Ce sont les choix du contrat, je les ai appliqués tels quels et
+commentés dans le code.
+
+Deux incidents de ma part. J'ai d'abord placé l'endpoint dans `PresenceController`
+(`/api/presences/...`) alors que le contrat le situe sous `/api/sessions/{id}/presences`
+— une route qui n'existait dans aucune version du contrat n'aurait pas été
+interopérable. J'ai d'abord ajouté la méthode à `PresenceService` en remplaçant la
+queue de `marquer`, ce qui a supprimé son `return` et son accolade de fin : les
+accolades étaient déséquilibrées et la compilation échouait. Détecté par un comptage
+d'accolades ligne à ligne, qui indiquait `marquer` encore ouverte au niveau 2.
+
+IA : m'a aidé à voir que l'absence de contrôle d'expiration est le cœur de RG13
+et non un oubli. Réécrire un test « l'expiration n'est pas vérifiée » est plus
+parlant qu'un test « ça marche après expiration » : le premier dit ce qui doit
+rester faux, le second pourrait encore passer si l'expiration disparaissait du
+modèle. Vérifié par les deux.
+
+Limite : comme ailleurs, l'écran n'a pas été vérifié dans un navigateur — build
+`tsc` et lint passent, les cinq cas HTTP sont couverts par des tests
+d'intégration. Et l'entité `Etudiant` est volontairement minimale : sans
+authentification, n'importe qui peut appeler cet endpoint et marquer n'importe
+quel étudiant présent.
+
+

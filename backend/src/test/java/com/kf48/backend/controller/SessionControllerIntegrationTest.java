@@ -84,4 +84,82 @@ class SessionControllerIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("SESSION_INCONNUE"));
     }
+
+    // ---- EF10 / RG13 : présence manuelle par le formateur ----
+
+    @Test
+    void ajouterUnePresenceManuelleRenvoie201SourceFormateur() throws Exception {
+        String corps = mockMvc.perform(post("/api/sessions")
+                        .contentType("application/json")
+                        .content("{\"titre\":\"Seance 1\",\"promotionId\":1}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int id = com.jayway.jsonpath.JsonPath.read(corps, "$.id");
+
+        mockMvc.perform(post("/api/sessions/" + id + "/presences")
+                        .contentType("application/json")
+                        .content("{\"etudiantId\":3}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sessionId").value(id))
+                .andExpect(jsonPath("$.etudiantId").value(3))
+                .andExpect(jsonPath("$.source").value("FORMATEUR"));
+    }
+
+    @Test
+    void ajouterUnePresenceApresClotureRenvoie409() throws Exception {
+        String corps = mockMvc.perform(post("/api/sessions")
+                        .contentType("application/json")
+                        .content("{\"titre\":\"Seance 1\",\"promotionId\":1}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int id = com.jayway.jsonpath.JsonPath.read(corps, "$.id");
+        mockMvc.perform(post("/api/sessions/" + id + "/cloture")).andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/sessions/" + id + "/presences")
+                        .contentType("application/json")
+                        .content("{\"etudiantId\":3}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("SESSION_CLOTUREE"));
+    }
+
+    @Test
+    void ajouterUnePresencePourUnEtudiantInconnuRenvoie400() throws Exception {
+        String corps = mockMvc.perform(post("/api/sessions")
+                        .contentType("application/json")
+                        .content("{\"titre\":\"Seance 1\",\"promotionId\":1}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int id = com.jayway.jsonpath.JsonPath.read(corps, "$.id");
+
+        mockMvc.perform(post("/api/sessions/" + id + "/presences")
+                        .contentType("application/json")
+                        .content("{\"etudiantId\":999999}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("ETUDIANT_INCONNU"));
+    }
+
+    @Test
+    void ajouterUnePresenceSurSessionInconnueRenvoie404() throws Exception {
+        mockMvc.perform(post("/api/sessions/999999/presences")
+                        .contentType("application/json")
+                        .content("{\"etudiantId\":3}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("SESSION_INCONNUE"));
+    }
+
+    @Test
+    void etudiantIdManquantRenvoie400CHAMP_MANQUANT() throws Exception {
+        String corps = mockMvc.perform(post("/api/sessions")
+                        .contentType("application/json")
+                        .content("{\"titre\":\"Seance 1\",\"promotionId\":1}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        int id = com.jayway.jsonpath.JsonPath.read(corps, "$.id");
+
+        mockMvc.perform(post("/api/sessions/" + id + "/presences")
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CHAMP_MANQUANT"));
+    }
 }

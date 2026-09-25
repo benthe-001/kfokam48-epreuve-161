@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import type { SessionOuverte } from '../api/sessions'
 import { cloturerSession, ouvrirSession } from '../api/sessions'
+import { ajouterPresenceFormateur } from '../api/presences'
 import { ErreurApi } from '../api/client'
-import { PROMOTIONS } from '../donneesDemo'
+import { ETUDIANTS, PROMOTIONS } from '../donneesDemo'
 
 function formaterDate(iso: string): string {
   const date = new Date(iso)
@@ -25,6 +26,9 @@ export function OuvrirSession() {
   const [session, setSession] = useState<SessionOuverte | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
   const [cloturee, setCloturee] = useState(false)
+  const [etudiantId, setEtudiantId] = useState(ETUDIANTS[0].id)
+  const [ajoutEnCours, setAjoutEnCours] = useState(false)
+  const [presenceAjoutee, setPresenceAjoutee] = useState(false)
 
   async function soumettre() {
     if (enCours) return
@@ -46,9 +50,9 @@ export function OuvrirSession() {
   }
 
   /**
-   * EF9 : la clôture est un acte volontaire distinct de l'expiration du code (RG14).
+   * EF9 / RG14 : la clôture est un acte volontaire distinct de l'expiration du code (RG14).
    * Elle est définitive : une fois close, la session refuse dépôts, remplacements
-   * de lien et corrections de note.
+   * de lien, corrections de note et présences manuelles.
    */
   async function cloturer() {
     if (enCours || !session || cloturee) return
@@ -65,6 +69,26 @@ export function OuvrirSession() {
       }
     } finally {
       setEnCours(false)
+    }
+  }
+
+  /** EF10 / RG13 : présence manuelle, possible même après expiration du code. */
+  async function ajouterPresence() {
+    if (ajoutEnCours || !session || cloturee) return
+    setAjoutEnCours(true)
+    setErreur(null)
+    setPresenceAjoutee(false)
+    try {
+      await ajouterPresenceFormateur(session.id, etudiantId)
+      setPresenceAjoutee(true)
+    } catch (e) {
+      if (e instanceof ErreurApi) {
+        setErreur(`${e.code} — ${e.message}`)
+      } else {
+        setErreur('Erreur inattendue.')
+      }
+    } finally {
+      setAjoutEnCours(false)
     }
   }
 
@@ -164,6 +188,46 @@ export function OuvrirSession() {
           {cloturee && (
             <p className="succes" role="status">
               Session clôturée : plus aucune modification n&apos;est possible.
+            </p>
+          )}
+
+          <h3>Ajouter une présence manuellement</h3>
+          <p className="note">
+            EF10 / RG13 : la présence est enregistrée avec la source FORMATEUR. Possible même
+            après l&apos;expiration du code — pour rattraper un étudiant oublié — mais refusée une
+            fois la session clôturée.
+          </p>
+          <form
+            className="formulaire"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void ajouterPresence()
+            }}
+          >
+            <label className="champ">
+              Étudiant
+              <select
+                value={etudiantId}
+                onChange={(e) => setEtudiantId(Number(e.target.value))}
+              >
+                {ETUDIANTS.map((et) => (
+                  <option key={et.id} value={et.id}>
+                    {et.nom}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="submit"
+              className="action secondaire"
+              disabled={enCours || cloturee}
+            >
+              {ajoutEnCours ? 'Ajout…' : 'Ajouter la présence'}
+            </button>
+          </form>
+          {presenceAjoutee && (
+            <p className="succes" role="status">
+              Présence ajoutée (source FORMATEUR).
             </p>
           )}
         </section>

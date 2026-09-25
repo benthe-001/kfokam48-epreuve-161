@@ -3,9 +3,11 @@ package com.kf48.backend.service;
 import com.kf48.backend.domain.Presence;
 import com.kf48.backend.domain.SessionCours;
 import com.kf48.backend.domain.TentativeBlocage;
+import com.kf48.backend.dto.AjouterPresenceRequest;
 import com.kf48.backend.dto.MarquerPresenceRequest;
 import com.kf48.backend.dto.PresenceResponse;
 import com.kf48.backend.exception.MetierException;
+import com.kf48.backend.repository.EtudiantRepository;
 import com.kf48.backend.repository.PresenceRepository;
 import com.kf48.backend.repository.SessionRepository;
 import com.kf48.backend.repository.TentativeBlocageRepository;
@@ -22,15 +24,18 @@ public class PresenceService {
     private final PresenceRepository presenceRepository;
     private final TentativeBlocageRepository tentativeBlocageRepository;
     private final AssignationRelecteurService assignationRelecteurService;
+    private final EtudiantRepository etudiantRepository;
 
     public PresenceService(SessionRepository sessionRepository,
                            PresenceRepository presenceRepository,
                            TentativeBlocageRepository tentativeBlocageRepository,
-                           AssignationRelecteurService assignationRelecteurService) {
+                           AssignationRelecteurService assignationRelecteurService,
+                           EtudiantRepository etudiantRepository) {
         this.sessionRepository = sessionRepository;
         this.presenceRepository = presenceRepository;
         this.tentativeBlocageRepository = tentativeBlocageRepository;
         this.assignationRelecteurService = assignationRelecteurService;
+        this.etudiantRepository = etudiantRepository;
     }
 
     @Transactional
@@ -65,6 +70,44 @@ public class PresenceService {
 
         // RG6 : un nouvel arrivant peut débloquer les exercices encore sans relecteur
         assignationRelecteurService.tenterAssignerPourSession(session.getId());
+
+        return PresenceResponse.depuis(presence);
+    }
+
+
+    /**
+     * EF10 / RG13 : le formateur ajoute une présence manuelle.
+     *
+     * RG13 : c'est la seule opération autorisée après l'expiration du code — un
+     * formateur doit pouvoir rattraper un étudiant qu'il a oublié au moment de la
+     * séance, et l'expiration du code est automatique (15 min) alors que la clôture
+     * est un acte volontaire : refuser ici pour cause d'expiration rendrait la
+     * fonctionnalité inutile. En revanche la clôture est respectée (409).
+     *
+     * RG6 : une présence enregistrée est aussi un déclencheur d'une nouvelle tentative
+     * d'assignation, exactement comme un marquage étudiant.
+     */
+    @Transactional
+    public PresenceResponse ajouterManuellement(Long sessionId, AjouterPresenceRequest requete) {
+        SessionCours session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "SESSION_INCONNUE"));
+
+        if (!etudiantRepository.existsById(requete.etudiantId())) {
+            throw new MetierException(HttpStatus.BAD_REQUEST, "ETUDIANT_INCONNU");
+        }
+
+        if (session.getStatut() == SessionCours.Statut.CLOTUREE) { // RG13
+            throw new MetierException(HttpStatus.CONFLICT, "SESSION_CLOTUREE");
+        }
+
+        if (presenceRepository.existsBySessionIdAndEtudiantId(sessionId, requete.etudiantId())) { // RG18
+            throw new MetierException(HttpStatus.CONFLICT, "DEJA_PRESENT");
+        }
+
+        Presence presence = presenceRepository.save(
+                new Presence(sessionId, requete.etudiantId(), Presence.Source.FORMATEUR));
+
+        assignationRelecteurService.tenterAssignerPourSession(sessionId); // RG6
 
         return PresenceResponse.depuis(presence);
     }

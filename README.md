@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 91 tests : 90 unitaires/intégration + contexte
+./mvnw.cmd test                  # 103 tests : 102 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -142,19 +142,26 @@ refusés en 409 `SESSION_CLOTUREE`. RG10 : les exercices sans relecture rendue
 restent au statut `EN_ATTENTE_RELECTURE` et restent consultables — la clôture ne
 supprime ni ne modifie aucun exercice.
 
-Le frontend expose cinq écrans dans une navigation à onglets : *Formateur ·
-Ouvrir une session* (avec le bouton de clôture), *Étudiant · Marquer ma
-présence*, *Étudiant · Déposer mon exercice*, *Étudiant · Consulter ma note* et
-*Relecteur · Rendre ma relecture*. L'écran de présence gère aussi le blocage
-RG3 (bouton désactivé avec décompte du temps restant) ; l'écran de dépôt
-permet de remplacer son lien, et affiche pourquoi le remplacement devient
-indisponible dès qu'un relecteur est assigné ; l'écran de relecture valide la
-note côté client, affiche la note obtenue sur 20 et permet de la corriger ;
-l'écran de consultation affiche « Pas encore notée » tant que la relecture n'est
-pas rendue.
+**EF10 — ticket #11** (RG13, RG18) : `POST /api/sessions/{id}/presences` ajoute une
+présence avec `source=FORMATEUR`. RG13 : l'ajout reste possible après l'expiration
+du code de présence (pour rattraper un étudiant oublié), mais il est refusé après
+la clôture de la session (409 `SESSION_CLOTUREE`). Un étudiant déjà présent ne peut
+pas être ajouté deux fois (409 `DEJA_PRESENT`), et un identifiant inconnu renvoie
+400 `ETUDIANT_INCONNU` — un 400 imposé par le contrat, à ne pas confondre avec un
+404. Comme tout marquage de présence, l'ajout manuel déclenche une nouvelle
+tentative d'assignation d'un relecteur (RG6).
 
-Restant à faire : EF10 et EF11 (présence manuelle du formateur, tableau
-récapitulatif par étudiant).
+Le frontend expose cinq écrans dans une navigation à onglets : *Formateur ·
+Ouvrir une session* (avec le bouton de clôture et l'ajout manuel d'une présence),
+*Étudiant · Marquer ma présence*, *Étudiant · Déposer mon exercice*, *Étudiant ·
+Consulter ma note* et *Relecteur · Rendre ma relecture*. L'écran de présence gère
+aussi le blocage RG3 (bouton désactivé avec décompte du temps restant) ; l'écran de
+dépôt permet de remplacer son lien, et affiche pourquoi le remplacement devient
+indisponible dès qu'un relecteur est assigné ; l'écran de relecture valide la note
+côté client, affiche la note obtenue sur 20 et permet de la corriger ; l'écran de
+consultation affiche « Pas encore notée » tant que la relecture n'est pas rendue.
+
+Restant à faire : EF11 (tableau récapitulatif par étudiant pour le formateur).
 
 ## Format des erreurs
 
