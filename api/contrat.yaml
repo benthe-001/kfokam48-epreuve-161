@@ -71,6 +71,7 @@ paths:
         "400": { $ref: "#/components/responses/Erreur" }   # CODE_INCONNU
         "409": { $ref: "#/components/responses/Erreur" }   # DEJA_PRESENT
         "410": { $ref: "#/components/responses/Erreur" }   # CODE_EXPIRE
+        "429": { $ref: "#/components/responses/Erreur" }   # ETUDIANT_BLOQUE (RG3)
 
   /api/exercices:
     post:

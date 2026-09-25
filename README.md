@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 12 tests : 5 unitaires/intégration + contexte
+./mvnw.cmd test                  # 17 tests : 16 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -90,11 +90,16 @@ porte un code unique de 6 caractères.
 enregistre une présence `source=ETUDIANT`, et refuse un code inconnu (400), un
 code expiré (410) ou un second marquage par le même étudiant (409).
 
-Le frontend expose deux écrans dans une navigation à onglets : *Formateur · Ouvrir
-une session* et *Étudiant · Marquer ma présence*.
+**RG3 — ticket #3** : après 5 échecs `CODE_INCONNU` consécutifs, l'étudiant est
+bloqué 2 minutes (429 `ETUDIANT_BLOQUE`), tous codes confondus ; le compteur est
+remis à zéro dès la première présence réussie. `CODE_EXPIRE` et `DEJA_PRESENT`
+ne comptent pas : ils prouvent que l'étudiant connaissait déjà un code valide.
 
-Restant à faire : EF3 (dépôt d'exercice) à EF11 (tableau récapitulatif), ainsi que
-le ticket #3 (RG3 — blocage après 5 échecs de code), volontairement traité à part.
+Le frontend expose deux écrans dans une navigation à onglets : *Formateur · Ouvrir
+une session* et *Étudiant · Marquer ma présence*. L'écran étudiant gère aussi le
+blocage RG3 (bouton désactivé avec décompte du temps restant).
+
+Restant à faire : EF3 (dépôt d'exercice) à EF11 (tableau récapitulatif).
 
 ## Format des erreurs
 
@@ -110,6 +115,7 @@ Toute erreur de l'API respecte le format imposé (B4) :
 | `CODE_INCONNU` | 400 | code de présence inexistant |
 | `CODE_EXPIRE` | 410 | session expirée (RG1) |
 | `DEJA_PRESENT` | 409 | présence déjà enregistrée (RG18) |
+| `ETUDIANT_BLOQUE` | 429 | trop de codes errés, blocage temporaire (RG3) |
 | `REQUETE_INVALIDE` | 400 | corps de requête illisible |
 | `RESSOURCE_INTROUVABLE` | 404 | adresse inconnue |
 | `METHODE_NON_AUTORISEE` | 405 | méthode non supportée |

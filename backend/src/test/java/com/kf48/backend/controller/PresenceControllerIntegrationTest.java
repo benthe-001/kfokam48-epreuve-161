@@ -64,4 +64,23 @@ class PresenceControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CHAMP_MANQUANT"));
     }
+
+    @Test
+    void sixiemeEssaiRenvoie429ETUDIANT_BLOQUE() throws Exception { // RG3
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/presences")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"code\":\"ZZZZZZ\",\"etudiantId\":3}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("CODE_INCONNU"));
+        }
+
+        // Meme avec le bon code, l'etudiant est bloque 2 minutes.
+        mockMvc.perform(post("/api/presences")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"ABCDEF\",\"etudiantId\":3}"))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("ETUDIANT_BLOQUE"))
+                .andExpect(jsonPath("$.message").isNotEmpty());
+    }
 }
