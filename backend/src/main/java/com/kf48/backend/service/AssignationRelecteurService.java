@@ -5,6 +5,7 @@ import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.repository.ExerciceRepository;
 import com.kf48.backend.repository.PresenceRepository;
 import com.kf48.backend.repository.RelectureRepository;
+import com.kf48.backend.repository.SessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,23 +27,38 @@ public class AssignationRelecteurService {
     private final ExerciceRepository exerciceRepository;
     private final PresenceRepository presenceRepository;
     private final RelectureRepository relectureRepository;
+    private final SessionRepository sessionRepository;
     private final SecureRandom aleatoire = new SecureRandom();
 
     public AssignationRelecteurService(ExerciceRepository exerciceRepository,
                                         PresenceRepository presenceRepository,
-                                        RelectureRepository relectureRepository) {
+                                        RelectureRepository relectureRepository,
+                                        SessionRepository sessionRepository) {
         this.exerciceRepository = exerciceRepository;
         this.presenceRepository = presenceRepository;
         this.relectureRepository = relectureRepository;
+        this.sessionRepository = sessionRepository;
     }
 
     /**
      * Tente d'assigner un relecteur à chaque exercice encore DEPOSE de la session.
      * Idempotent : un exercice déjà assigné n'est plus retourné par la requête
      * (son statut n'est plus DEPOSE), donc un second appel ne crée pas de doublon.
+     *
+     * Issue #25 : la session est d'abord verrouillée en écriture. Sans ce verrou,
+     * deux transactions concurrentes lisent le même exercice DEPOSE et insèrent
+     * toutes deux une relecture ; la seconde viole la contrainte unique RG5 et son
+     * appelant voit sa transaction entière annulée — donc une présence perdue.
+     * Avec le verrou, la seconde transaction attend, relit l'exercice après le commit
+     * de la première, constate qu'il n'est plus DEPOSE et ne fait rien.
+     * Le verrou est sur la session, pas sur l'exercice : c'est le périmètre minimal
+     * qui sérialise toutes les assignations de cette session, quel que soit l'appelant.
      */
     @Transactional
     public void tenterAssignerPourSession(Long sessionId) {
+        sessionRepository.findByIdPourMiseAJour(sessionId)
+                .orElse(null); // verrou pessimiste : bloque jusqu'au commit de la transaction concurrente
+
         List<Exercice> enAttente = exerciceRepository.findBySessionIdAndStatut(sessionId, Exercice.Statut.DEPOSE);
         if (enAttente.isEmpty()) {
             return;
