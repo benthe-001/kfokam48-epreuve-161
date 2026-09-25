@@ -1,5 +1,6 @@
 package com.kf48.backend.service;
 
+import com.kf48.backend.domain.Exercice;
 import com.kf48.backend.domain.Presence;
 import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
@@ -211,9 +212,58 @@ class ExerciceServiceTest {
     void laConsultationRefuseePourUnExerciceInconnu() {
         assertThatThrownBy(() -> exerciceService.consulter(999999L))
                 .isInstanceOfSatisfying(MetierException.class, e -> {
-                    assertThat(e.getCode()).isEqualTo("EXERCICE_INCONNUE");
+                    assertThat(e.getCode()).isEqualTo("EXERCICE_INCONNU");
                     assertThat(e.getStatut().value()).isEqualTo(404);
                 });
     }
+
+    // ---- EF9 : apres cloture, plus rien ne bouge (RG14) ; RG10 : rien ne disparait ----
+
+    @Test
+    void depotRefuseApresClotureDeLaSession() { // RG11, RG14
+        session.cloturer();
+
+        assertThatThrownBy(() -> exerciceService.deposer(
+                new DeposerExerciceRequest(session.getId(), 2L, LIEN)))
+                .isInstanceOfSatisfying(MetierException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("SESSION_CLOTUREE");
+                    assertThat(e.getStatut().value()).isEqualTo(409);
+                });
+    }
+
+    @Test
+    void remplacementDeLienRefuseApresClotureDeLaSession() { // RG11, RG14
+        // Aucun relecteur assigné : sans ce contrôle, RG12 autoriserait le remplacement
+        Long id = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
+        session.cloturer();
+
+        assertThatThrownBy(() -> exerciceService.remplacerLien(
+                id, new RemplacerLienRequest("https://github.com/etudiant/autre")))
+                .isInstanceOfSatisfying(MetierException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("SESSION_CLOTUREE");
+                    assertThat(e.getStatut().value()).isEqualTo(409);
+                });
+
+        assertThat(exerciceRepository.findById(id).orElseThrow().getLien()).isEqualTo(LIEN);
+    }
+
+    @Test
+    void unExerciceSansRelectureRendueResteEnAttenteApresCloture() { // RG10
+        presenceRepository.save(new Presence(session.getId(), 2L, Presence.Source.ETUDIANT));
+        Long id = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
+        session.cloturer();
+
+        // La clôture ne doit rien changer à l'exercice : il reste assigné, non rendu, visible.
+        Exercice apres = exerciceRepository.findById(id).orElseThrow();
+        assertThat(apres.getStatut()).isEqualTo(Exercice.Statut.EN_ATTENTE_RELECTURE);
+        assertThat(relectureRepository.findByExerciceId(id)).isPresent();
+
+        // Et il reste consultable par l'étudiant, avec une note absente
+        ExerciceDetailResponse detail = exerciceService.consulter(id);
+        assertThat(detail.statut()).isEqualTo("EN_ATTENTE_RELECTURE");
+        assertThat(detail.note()).isNull();
+        assertThat(detail.commentaire()).isNull();
+    }
+
 
 }

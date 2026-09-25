@@ -64,11 +64,21 @@ public class ExerciceService {
      * EF4 / RG12 : l'étudiant remplace le lien de son exercice tant qu'aucun relecteur
      * n'est assigné. Dès qu'une relecture existe, le remplacement est refusé (409), même
      * si la relecture n'a pas encore été rendue.
+     *
+     * RG11 / RG14 : ce contrôle manquait jusqu'au ticket #9 (clôture de session). Il est
+     * posé avant RG12, car une session close est un motif plus général que l'assignation
+     * d'un relecteur : après clôture, plus rien ne bouge.
      */
     @Transactional
     public ExerciceResponse remplacerLien(Long exerciceId, RemplacerLienRequest requete) {
         Exercice exercice = exerciceRepository.findById(exerciceId)
                 .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNU"));
+
+        SessionCours session = sessionRepository.findById(exercice.getSessionId())
+                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "SESSION_INCONNUE"));
+        if (session.getStatut() == SessionCours.Statut.CLOTUREE) {
+            throw new MetierException(HttpStatus.CONFLICT, "SESSION_CLOTUREE");
+        }
 
         // RG12 : on teste l'EXISTENCE d'une relecture, pas le statut de l'exercice.
         // Le statut pourrait rester DEPOSE dans un cas limite, alors que la seule
@@ -94,8 +104,11 @@ public class ExerciceService {
     @Transactional(readOnly = true)
     public ExerciceDetailResponse consulter(Long exerciceId) {
         Exercice exercice = exerciceRepository.findById(exerciceId)
-                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNUE"));
+                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNU"));
 
+        // RG10 : la lecture reste possible après la clôture de la session. C'est
+        // indispensable — sinon un étudiant ne pourrait plus consulter la note qu'il
+        // vient de recevoir, et les exercices « en attente » deviendraient invisibles.
         Relecture relecture = relectureRepository.findByExerciceId(exerciceId).orElse(null);
         return ExerciceDetailResponse.depuis(exercice, relecture);
     }
