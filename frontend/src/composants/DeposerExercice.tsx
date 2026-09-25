@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import type { ExerciceDepose } from '../api/exercices'
-import { deposerExercice } from '../api/exercices'
+import { deposerExercice, remplacerLienExercice } from '../api/exercices'
 import { ErreurApi } from '../api/client'
 import { ETUDIANTS } from '../donneesDemo'
 
 const LIEN_VIDE = ''
 
-/** EF4 : dépôt du lien de l'exercice. */
+/** EF4 : dépôt du lien de l'exercice. EF5 : remplacement du lien tant qu'aucun relecteur n'est assigné. */
 export function DeposerExercice() {
   const [sessionId, setSessionId] = useState(1)
   const [etudiantId, setEtudiantId] = useState(ETUDIANTS[0].id)
@@ -14,20 +14,44 @@ export function DeposerExercice() {
   const [enCours, setEnCours] = useState(false)
   const [exercice, setExercice] = useState<ExerciceDepose | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
+  const [lienRemplace, setLienRemplace] = useState(false)
+
+  // RG12 : le remplacement se verrouille côté serveur dès qu'un relecteur est assigné.
+  // On reflète ce verrou dans l'interface dès que le statut le signale, pour expliquer
+  // au student pourquoi le bouton devient indisponible.
+  const verrouille = exercice?.statut === 'EN_ATTENTE_RELECTURE' || exercice?.statut === 'NOTE'
+
+  function message(e: unknown): string {
+    if (e instanceof ErreurApi) {
+      return `${e.code} — ${e.message}`
+    }
+    return 'Erreur inattendue.'
+  }
 
   async function soumettre() {
     if (enCours) return
     setEnCours(true)
     setExercice(null)
     setErreur(null)
+    setLienRemplace(false)
     try {
       setExercice(await deposerExercice(sessionId, etudiantId, lien.trim()))
     } catch (e) {
-      if (e instanceof ErreurApi) {
-        setErreur(`${e.code} — ${e.message}`)
-      } else {
-        setErreur('Erreur inattendue.')
-      }
+      setErreur(message(e))
+    } finally {
+      setEnCours(false)
+    }
+  }
+
+  async function remplacer() {
+    if (enCours || !exercice) return
+    setEnCours(true)
+    setErreur(null)
+    try {
+      setExercice(await remplacerLienExercice(exercice.id, lien.trim()))
+      setLienRemplace(true)
+    } catch (e) {
+      setErreur(message(e))
     } finally {
       setEnCours(false)
     }
@@ -105,9 +129,28 @@ export function DeposerExercice() {
               <dd>{exercice.statut}</dd>
             </div>
           </dl>
+
+          <h3>Remplacer mon lien</h3>
           <p className="note">
-            Il sera assigné à un relecteur lors d&apos;une prochaine étape ; en attendant, il reste en attente.
+            RG12 : accepté tant qu&apos;aucun relecteur n&apos;est assigné. Dès qu&apos;un relecteur l&apos;est,
+            le remplacement est refusé — même s&apos;il n&apos;a pas encore rendu sa relecture.
           </p>
+          <button
+            type="button"
+            className="action secondaire"
+            onClick={() => void remplacer()}
+            disabled={enCours || verrouille || lien.trim() === ''}
+          >
+            {enCours ? 'Remplacement…' : 'Remplacer le lien'}
+          </button>
+          {verrouille && (
+            <p className="note">Un relecteur est assigné : le lien n&apos;est plus modifiable.</p>
+          )}
+          {lienRemplace && (
+            <p className="succes" role="status">
+              Lien mis à jour.
+            </p>
+          )}
         </section>
       )}
     </section>

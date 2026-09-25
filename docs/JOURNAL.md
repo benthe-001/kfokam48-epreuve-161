@@ -189,4 +189,60 @@ mais aucun test ne la déclenche car l'endpoint de clôture (ticket #10) n'exist
 pas encore : le scénario n'est atteignable que le jour où #10 existera. Le dépôt
 après expiration du code (RG11), qui est le cœur du ticket, est en revanche
 couvert par un test dédié.
+## Étape 8 — Ticket #6 : assignation automatique d'un relecteur (RG4, RG5, RG6)
+
+Fait : entité `Relecture` et son repository, plus une méthode de transition sur
+`Exercice` (`marquerEnAttenteRelecture`). Le cœur du ticket est un service
+dédié, `AssignationRelecteurService.tenterAssignerPourSession(sessionId)`, appelé
+à **deux** moments : après chaque dépôt d'exercice et après chaque nouvelle
+présence enregistrée sur la session. Il tire au sort un relecteur parmi les
+présents, en excluant l'auteur de l'exercice ; le service est idempotent, donc un
+second appel ne crée pas de doublon.
+
+Choix : le service ne lève pas d'exception. Il ne fait que « tenter » — c'est ce
+qui permet de le brancher sur deux déclencheurs sans alourdir les
+contrôleurs. Le dépôt renvoie ensuite le statut réel de l'exercice, donc la
+réponse reflète `EN_ATTENTE_RELECTURE` si un relecteur a pu être désigné, et
+`DEPOSE` sinon.
+
+Bloqué : les deux déclencheurs sont dans des transactions différentes. L'ordre
+« écrire d'abord, tenter ensuite » est important : la présence ou l'exercice
+doit être visible en base pour que le tirage parmi les présents fonctionne.
+
+IA : m'a aidé à repérer un piège de persistance. Le changement de statut de
+l'exercice se fait par *dirty checking* (entité managée renvoyée par la
+requête), sans appel explicite à `save()` ; je l'ai vérifié en relisant la
+transaction englobante plutôt qu'en supposant que l'assignation était écrite.
+
+Limite : le tirage est réellement aléatoire (`SecureRandom`), donc un test ne
+peut pas prédire *qui* est désigné. Les tests vérifient donc des propriétés
+(l'auteur n'est jamais choisi, un seul relecteur par exercice, l'exercice reste
+`DEPOSE` quand personne n'est disponible) plutôt que le résultat exact.
+
+## Étape 9 — Ticket #5 : remplacer le lien de son exercice (EF5, RG12)
+
+Fait : `PUT /api/exercices/{id}`, un DTO de requête validé, une méthode
+`ExerciceService.remplacerLien` et une transition de domaine
+`Exercice.remplacerLien` qui met aussi à jour `modifie_at`. Le contrôle de RG12
+porte sur l'**existence d'une relecture assignée** (`existsByExerciceId`), et
+non sur le statut de l'exercice : c'est la réalité métier — « un relecteur a-t-il
+été désigné ? » — qui compte, et elle reste vraie même si le statut n'a pas
+encore bougé. Le refus est donc un 409 `RELECTEUR_DEJA_ASSIGNE`, y compris quand
+la relecture n'est pas encore rendue. Côté frontend, l'écran de dépôt affiche
+le bouton de remplacement et explique pourquoi il se verrouille.
+
+Bloqué : rien de bloquant. Deux codes d'erreur déjà présents dans
+`MessagesErreur` (`EXERCICE_INCONNU`, `RELECTEUR_DEJA_ASSIGNE`) ont évité d'en
+inventer, et aucune migration n'a été nécessaire : `modifie_at` existait déjà
+dans `V1__schema.sql`.
+
+IA : m'a aidé sur le point de conception le plus subtil du ticket — rattacher
+le verrou au statut de l'exercice serait plus lisible mais fragile. Vérifié par
+des tests qui distinguent les deux cas (avec et sans relecteur assigné), puis par
+le build complet du backend et du frontend.
+
+Limite : l'effet du remplacement n'a pas été vérifié depuis un vrai navigateur,
+le frontend n'ayant pas de tests automatisés à ce stade ; le build `tsc` et le
+lint passent, et l'appel HTTP est couvert côté intégration.
+
 
