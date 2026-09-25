@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { PresenceEnregistree } from '../api/presences'
 import { marquerPresence } from '../api/presences'
 import { ErreurApi } from '../api/client'
@@ -11,9 +11,28 @@ export function MarquerPresence() {
   const [enCours, setEnCours] = useState(false)
   const [presence, setPresence] = useState<PresenceEnregistree | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
+  // RG3 : après 5 échecs, l'étudiant est bloqué 2 minutes -> on désactive le formulaire
+  // et on décompte le temps restant plutôt que d'attendre un nouvel aller-retour serveur.
+  const [bloqueJusqua, setBloqueJusqua] = useState(0)
+  const [secondesRestantes, setSecondesRestantes] = useState(0)
+
+  useEffect(() => {
+    if (bloqueJusqua === 0) return
+    const intervalle = setInterval(() => {
+      const restant = Math.max(0, Math.ceil((bloqueJusqua - Date.now()) / 1000))
+      setSecondesRestantes(restant)
+      if (restant === 0) {
+        setBloqueJusqua(0)
+        setErreur(null)
+      }
+    }, 1000)
+    return () => clearInterval(intervalle)
+  }, [bloqueJusqua])
+
+  const bloque = secondesRestantes > 0
 
   async function soumettre() {
-    if (enCours) return
+    if (enCours || bloque) return
     setEnCours(true)
     setPresence(null)
     setErreur(null)
@@ -22,6 +41,10 @@ export function MarquerPresence() {
     } catch (e) {
       if (e instanceof ErreurApi) {
         setErreur(`${e.code} — ${e.message}`)
+        if (e.statut === 429) {
+          setBloqueJusqua(Date.now() + 2 * 60 * 1000)
+          setSecondesRestantes(120)
+        }
       } else {
         setErreur('Erreur inattendue.')
       }
@@ -35,7 +58,8 @@ export function MarquerPresence() {
       <h1>Marquer ma présence</h1>
       <p className="sous-titre">
         RG1 : le code n&apos;est plus accepté après son expiration ·&nbsp;
-        RG18 : une seule présence par étudiant et par session.
+        RG18 : une seule présence par étudiant et par session ·&nbsp;
+        RG3 : 5 codes errés bloquent 2 minutes.
       </p>
 
       <form
@@ -77,9 +101,13 @@ export function MarquerPresence() {
         <button
           type="submit"
           className="action"
-          disabled={enCours || code.trim() === ''}
+          disabled={enCours || bloque || code.trim() === ''}
         >
-          {enCours ? 'Enregistrement…' : 'Valider ma présence'}
+          {bloque
+            ? `Bloqué — réessayez dans ${secondesRestantes} s`
+            : enCours
+              ? 'Enregistrement…'
+              : 'Valider ma présence'}
         </button>
       </form>
 

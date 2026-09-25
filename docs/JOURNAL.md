@@ -116,3 +116,38 @@ IA : m'a aidé à cadrer le Dockerfile multi-étapes et le healthcheck du backen
 (sonde TCP sur le port 8080, pour éviter d'ajouter actuator). Vérifié en lançant
 réellement l'application et en interrogeant l'API en HTTP, puis en confiant les
 tests comme garde-fou après chaque modification.
+
+## Étape 6 — Ticket #3 : blocage après 5 échecs (EF2, RG3)
+
+Fait : nouvelle migration `V3__blocage_tentatives.sql` (table `tentative_blocage` :
+`etudiant_id`, `echecs`, `bloque_jusqua`), entité `TentativeBlocage` et son
+repository. `PresenceService` applique désormais l'ordre complet : blocage en cours
+→ 429 `ETUDIANT_BLOQUE`, code inconnu → 400 `CODE_INCONNU` **en incrémentant le
+compteur**, code expiré → 410, déjà présent → 409, sinon remise à zéro du compteur
+puis création de la présence. Nouveau code d'erreur ajouté au contrat d'API
+(`429`) et au `MessagesErreur`, avec la réponse 429 documentée dans Swagger.
+Côté frontend, `MarquerPresence` détecte le `statut === 429` et désactive le
+bouton avec un décompte du temps restant. 5 tests ajoutés (4 côté service, 1 côté
+contrôleur) — le total passe à 17, tous verts.
+
+Bloqué : la spécification prévoyait `V2__blocage_tentatives.sql`, mais la version 2
+était déjà prise par `V2__demo_data.sql` ; deux migrations de même version font
+échouer le démarrage de Flyway. J'ai donc nommé la migration **V3**. Par ailleurs,
+la version initiale de RG3 (blocage rattaché au couple étudiant/session) s'est
+révélée **incodable** : la majorité des échecs de brute-force surviennent avec
+`CODE_INCONNU`, donc sans session identifiée, et il n'y a donc rien sur quoi
+compter. La règle a été révisée : suivi par étudiant seul, seuls les `CODE_INCONNU`
+comptent (`CODE_EXPIRE` et `DEJA_PRESENT` prouvent au contraire que l'étudiant
+connaissait un code valide), remise à zéro dès la première présence réussie.
+
+IA : m'a aidé à implémenter le service et les tests à partir de la règle révisée,
+et à repérer le conflit de numérotation des migrations. Vérifié en confrontant la
+révision de RG3 au modèle de données avant de coder, puis en lançant les 17 tests,
+et en corrigeant deux erreurs trouvées au passage : un `import` manquant dans
+`PresenceService`, et une assertion de test de ma propre rédaction qui vérifiait
+l'absence de ligne en base alors que le comportement correct est de conserver une
+ligne à `echecs = 0`.
+
+Limite : le cas « le blocage lève après 2 minutes » n'est pas couvert par un test
+automatique (il faudrait 2 minutes d'attente ou une horloge injectable) ; la logique
+de `estBloque()` n'est donc vérifiée qu'indirectement.

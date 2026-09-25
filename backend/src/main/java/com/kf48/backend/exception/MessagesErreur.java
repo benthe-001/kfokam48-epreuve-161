@@ -20,6 +20,7 @@ public final class MessagesErreur {
             entry("CODE_INCONNU", "Ce code de présence n'existe pas."),
             entry("CODE_EXPIRE", "Le code de présence a expiré."),
             entry("DEJA_PRESENT", "La présence est déjà enregistrée pour cette session."),
+            entry("ETUDIANT_BLOQUE", "Trop de tentatives échouées. Réessayez dans quelques instants."),
 
             // POST /api/exercices
             entry("LIEN_INVALIDE", "Le lien doit être une adresse http ou https complète."),
