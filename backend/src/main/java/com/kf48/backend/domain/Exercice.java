@@ -47,6 +47,11 @@ public class Exercice {
         this.statut = Statut.EN_ATTENTE_RELECTURE;
     }
 
+    /** EF6 : le relecteur a rendu sa note, l'exercice sort de la file de relecture. */
+    public void marquerNote() {
+        this.statut = Statut.NOTE;
+    }
+
     public Long getId() { return id; }
     public Long getSessionId() { return sessionId; }
     public Long getEtudiantId() { return etudiantId; }

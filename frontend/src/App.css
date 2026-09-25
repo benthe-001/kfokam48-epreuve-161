@@ -83,7 +83,8 @@
 }
 
 .champ input,
-.champ select {
+.champ select,
+.champ textarea {
   font: 16px/1.4 var(--sans);
   padding: 10px 12px;
   border-radius: 8px;
@@ -92,8 +93,15 @@
   color: var(--text-h);
 }
 
+.champ textarea {
+  resize: vertical;
+  min-height: 6rem;
+  width: 100%;
+}
+
 .champ input:focus-visible,
-.champ select:focus-visible {
+.champ select:focus-visible,
+.champ textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -208,4 +216,11 @@
   margin: 0.75rem 0 0;
   color: var(--succes, #1a7f37);
   font-size: 0.9rem;
+}
+
+/* EF6 : mise en avant de la note rendue */
+.note-finale {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent);
 }

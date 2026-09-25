@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import { DeposerExercice } from './composants/DeposerExercice'
 import { MarquerPresence } from './composants/MarquerPresence'
+import { NoterExercice } from './composants/NoterExercice'
 import { OuvrirSession } from './composants/OuvrirSession'
 import './App.css'
 
-type Onglet = 'formateur' | 'etudiant' | 'depot'
+type Onglet = 'formateur' | 'etudiant' | 'depot' | 'relecture'
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: 'formateur', libelle: 'Formateur · Ouvrir une session' },
   { cle: 'etudiant', libelle: 'Étudiant · Marquer ma présence' },
   { cle: 'depot', libelle: 'Étudiant · Déposer mon exercice' },
+  { cle: 'relecture', libelle: 'Relecteur · Rendre ma relecture' },
 ]
 
 function App() {
@@ -44,8 +46,10 @@ function App() {
           <OuvrirSession />
         ) : onglet === 'etudiant' ? (
           <MarquerPresence />
-        ) : (
+        ) : onglet === 'depot' ? (
           <DeposerExercice />
+        ) : (
+          <NoterExercice />
         )}
       </div>
     </main>
