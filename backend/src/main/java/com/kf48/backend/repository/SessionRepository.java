@@ -1,6 +1,6 @@
-package com.kf48.relectures.repository;
+package com.kf48.backend.repository;
 
-import com.kfokam48.relectures.domain.SessionCours;
+import com.kf48.backend.domain.SessionCours;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface SessionRepository extends JpaRepository<SessionCours, Long> {

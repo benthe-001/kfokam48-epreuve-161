@@ -1,9 +1,9 @@
-package com.kf48.relectures.service;
+package com.kf48.backend.service;
 
-import com.kfokam48.relectures.domain.SessionCours;
-import com.kfokam48.relectures.dto.OuvrirSessionRequest;
-import com.kfokam48.relectures.dto.SessionResponse;
-import com.kfokam48.relectures.repository.SessionRepository;
+import com.kf48.backend.domain.SessionCours;
+import com.kf48.backend.dto.OuvrirSessionRequest;
+import com.kf48.backend.dto.SessionResponse;
+import com.kf48.backend.repository.SessionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

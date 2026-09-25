@@ -1,4 +1,4 @@
-package com.kf48.relectures.domain;
+package com.kf48.backend.domain;
 
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;

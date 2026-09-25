@@ -1,6 +1,6 @@
-package com.kf48.relectures.dto;
+package com.kf48.backend.dto;
 
-import com.kfokam48.relectures.domain.SessionCours;
+import com.kf48.backend.domain.SessionCours;
 import java.time.OffsetDateTime;
 
 public record SessionResponse(Long id, String code, OffsetDateTime ouvertureAt, OffsetDateTime expirationAt) {

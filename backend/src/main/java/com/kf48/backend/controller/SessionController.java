@@ -1,8 +1,8 @@
-package com.kf48.relectures.controller;
+package com.kf48.backend.controller;
 
-import com.kfokam48.relectures.dto.OuvrirSessionRequest;
-import com.kfokam48.relectures.dto.SessionResponse;
-import com.kfokam48.relectures.service.SessionService;
+import com.kf48.backend.dto.OuvrirSessionRequest;
+import com.kf48.backend.dto.SessionResponse;
+import com.kf48.backend.service.SessionService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
