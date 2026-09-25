@@ -1,10 +1,13 @@
 package com.kf48.backend.service;
 
+import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
 import com.kf48.backend.dto.DeposerExerciceRequest;
 import com.kf48.backend.dto.ExerciceResponse;
+import com.kf48.backend.dto.RemplacerLienRequest;
 import com.kf48.backend.exception.MetierException;
 import com.kf48.backend.repository.ExerciceRepository;
+import com.kf48.backend.repository.RelectureRepository;
 import com.kf48.backend.repository.SessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +29,7 @@ class ExerciceServiceTest {
     @Autowired private ExerciceService exerciceService;
     @Autowired private SessionRepository sessionRepository;
     @Autowired private ExerciceRepository exerciceRepository;
+    @Autowired private RelectureRepository relectureRepository;
 
     private static final String LIEN = "https://github.com/etudiant/exercice-1";
 
@@ -87,5 +91,50 @@ class ExerciceServiceTest {
         ExerciceResponse b = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 2L, LIEN));
 
         assertThat(a.id()).isNotEqualTo(b.id());
+    }
+
+    // ---------- EF5 / RG12 : remplacement du lien ----------
+
+    private static final String NOUVEAU_LIEN = "https://github.com/etudiant/exercice-1-v2";
+
+    @Test
+    void remplacementAccepteSansRelecteurAssigne() {
+        Long id = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
+
+        ExerciceResponse reponse = exerciceService.remplacerLien(id, new RemplacerLienRequest(NOUVEAU_LIEN));
+
+        assertThat(exerciceRepository.findById(id).orElseThrow().getLien()).isEqualTo(NOUVEAU_LIEN);
+        assertThat(reponse.statut()).isEqualTo("DEPOSE"); // le remplacement ne change pas le statut
+    }
+
+    @Test
+    void remplacementMetAJourModifieAt() {
+        Long id = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
+        assertThat(exerciceRepository.findById(id).orElseThrow().getModifieAt()).isNull();
+
+        exerciceService.remplacerLien(id, new RemplacerLienRequest(NOUVEAU_LIEN));
+
+        assertThat(exerciceRepository.findById(id).orElseThrow().getModifieAt()).isNotNull();
+    }
+
+    @Test
+    void remplacementRefuseDesQuUnRelecteurEstAssigne() { // RG12 : meme sans relecture rendue
+        Long id = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
+        relectureRepository.save(new Relecture(id, 2L)); // relecteur designe, rendu_at encore null
+
+        assertThatThrownBy(() -> exerciceService.remplacerLien(id, new RemplacerLienRequest(NOUVEAU_LIEN)))
+                .isInstanceOfSatisfying(MetierException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("RELECTEUR_DEJA_ASSIGNE");
+                    assertThat(e.getStatut().value()).isEqualTo(409);
+                });
+
+        assertThat(exerciceRepository.findById(id).orElseThrow().getLien()).isEqualTo(LIEN); // lien inchangé
+    }
+
+    @Test
+    void exerciceInconnuRenvoie404EXERCICE_INCONNU() {
+        assertThatThrownBy(() -> exerciceService.remplacerLien(999999L, new RemplacerLienRequest(NOUVEAU_LIEN)))
+                .isInstanceOfSatisfying(MetierException.class,
+                        e -> assertThat(e.getCode()).isEqualTo("EXERCICE_INCONNU"));
     }
 }

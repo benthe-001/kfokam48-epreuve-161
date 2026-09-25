@@ -180,3 +180,32 @@
   color: var(--text-h);
   font-size: 0.9rem;
 }
+
+.carte h3 {
+  margin: 1.5rem 0 0;
+  font-size: 1rem;
+}
+
+.action.secondaire {
+  margin-top: 0.75rem;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--text-h);
+}
+
+.action.secondaire:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.sous-titre {
+  margin: 0 0 1.25rem;
+  color: var(--text-h);
+  font-size: 0.9rem;
+}
+
+.succes {
+  margin: 0.75rem 0 0;
+  color: var(--succes, #1a7f37);
+  font-size: 0.9rem;
+}

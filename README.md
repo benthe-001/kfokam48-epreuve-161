@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 27 tests : 26 unitaires/intégration + contexte
+./mvnw.cmd test                  # 43 tests : 42 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -100,16 +100,29 @@ et le reste possible après l'expiration du code (RG11) tant que la session n'es
 pas explicitement clôturée. Refus : lien non conforme (400 `LIEN_INVALIDE`),
 session inexistante (404), session clôturée (409 `SESSION_CLOTUREE`) ou dépôt
 déjà effectué par le même étudiant sur cette session (409
-`EXERCICE_DEJA_DEPOSE`). Le statut initial est `DEPOSE` ; l'assignation d'un
-relecteur (RG6) arrive au ticket #6.
+`EXERCICE_DEJA_DEPOSE`).
+
+**EF5 — ticket #6** (RG4, RG5, RG6) : à chaque dépôt d'exercice **et** à chaque
+nouvelle présence enregistrée, un service dédié tente d'assigner un relecteur
+tiré au sort parmi les présents. L'auteur est exclu des candidats (RG4), un
+exercice n'a qu'un seul relecteur (RG5), et si aucun autre étudiant n'est
+présent l'exercice reste `DEPOSE` — l'assignation est retentée à la présence
+suivante (RG6).
+
+**EF5** (EF4, RG12) : `PUT /api/exercices/{id}` remplace le lien de l'exercice.
+Accepté tant qu'aucun relecteur n'est assigné ; refusé (409
+`RELECTEUR_DEJA_ASSIGNE`) dès l'assignation, même si la relecture n'a pas encore
+été rendue. La colonne `modifie_at` est mise à jour.
 
 Le frontend expose trois écrans dans une navigation à onglets : *Formateur ·
 Ouvrir une session*, *Étudiant · Marquer ma présence* et *Étudiant · Déposer mon
 exercice*. L'écran de présence gère aussi le blocage RG3 (bouton désactivé avec
-décompte du temps restant).
+décompte du temps restant) ; l'écran de dépôt permet de remplacer son lien, et
+affiche pourquoi le remplacement devient indisponible dès qu'un relecteur est
+assigné.
 
-Restant à faire : EF5 à EF11 (assignation du relecteur jusqu'au tableau
-récapitulatif).
+Restant à faire : EF6 à EF11 (rendre une relecture, note, affectation de plusieurs
+relecteurs, clôture de session, tableau récapitulatif).
 
 ## Format des erreurs
 

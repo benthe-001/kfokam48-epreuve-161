@@ -52,4 +52,12 @@ public class Exercice {
     public Long getEtudiantId() { return etudiantId; }
     public String getLien() { return lien; }
     public Statut getStatut() { return statut; }
+    public OffsetDateTime getDeposeAt() { return deposeAt; }
+    public OffsetDateTime getModifieAt() { return modifieAt; }
+
+    /** RG12 : le lien reste modifiable tant qu'aucun relecteur n'est assigné. */
+    public void remplacerLien(String nouveauLien) {
+        this.lien = nouveauLien;
+        this.modifieAt = OffsetDateTime.now();
+    }
 }

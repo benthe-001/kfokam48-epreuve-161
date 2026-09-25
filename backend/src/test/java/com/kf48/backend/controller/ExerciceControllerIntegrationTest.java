@@ -1,6 +1,10 @@
 package com.kf48.backend.controller;
 
+import com.kf48.backend.domain.Exercice;
+import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
+import com.kf48.backend.repository.ExerciceRepository;
+import com.kf48.backend.repository.RelectureRepository;
 import com.kf48.backend.repository.SessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 // @Transactional : la base H2 de test est partagee entre les classes (DB_CLOSE_DELAY=-1).
@@ -27,6 +32,8 @@ class ExerciceControllerIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private SessionRepository sessionRepository;
+    @Autowired private ExerciceRepository exerciceRepository;
+    @Autowired private RelectureRepository relectureRepository;
 
     private Long sessionId;
 
@@ -84,5 +91,68 @@ class ExerciceControllerIntegrationTest {
                         .content("{\"sessionId\":" + sessionId + ",\"etudiantId\":3}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("CHAMP_MANQUANT"));
+    }
+
+    // ---------- EF5 / RG12 : PUT /api/exercices/{id} ----------
+
+    /** Cree un exercice sans relecteur assigne et retourne son id. */
+    private long creerExercice(long etudiantId) {
+        return exerciceRepository.save(new Exercice(sessionId, etudiantId, "https://github.com/e/1")).getId();
+    }
+
+    @Test
+    void remplacementRenvoie200() throws Exception {
+        long id = creerExercice(3);
+
+        mockMvc.perform(put("/api/exercices/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lien\":\"https://github.com/e/2\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value((int) id))
+                .andExpect(jsonPath("$.statut").value("DEPOSE"));
+    }
+
+    @Test
+    void remplacementAvecLienInvalideRenvoie400LIEN_INVALIDE() throws Exception {
+        long id = creerExercice(3);
+
+        mockMvc.perform(put("/api/exercices/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lien\":\"ftp://fichier\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("LIEN_INVALIDE"));
+    }
+
+    @Test
+    void remplacementSansLienRenvoie400CHAMP_MANQUANT() throws Exception {
+        long id = creerExercice(3);
+
+        mockMvc.perform(put("/api/exercices/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("CHAMP_MANQUANT"));
+    }
+
+    @Test
+    void exerciceInconnuRenvoie404EXERCICE_INCONNU() throws Exception {
+        mockMvc.perform(put("/api/exercices/999999")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lien\":\"https://github.com/e/2\"}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("EXERCICE_INCONNU"));
+    }
+
+    @Test
+    void remplacementRenvoie409RELECTEUR_DEJA_ASSIGNE() throws Exception {
+        // RG12 : refuse des l'assignation, meme si la relecture n'est pas encore rendue
+        long id = creerExercice(3L);
+        relectureRepository.save(new Relecture(id, 2L));
+
+        mockMvc.perform(put("/api/exercices/" + id)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"lien\":\"https://github.com/e/2\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("RELECTEUR_DEJA_ASSIGNE"));
     }
 }

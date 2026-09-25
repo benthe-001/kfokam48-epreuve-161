@@ -2,6 +2,7 @@ package com.kf48.backend.controller;
 
 import com.kf48.backend.dto.DeposerExerciceRequest;
 import com.kf48.backend.dto.ExerciceResponse;
+import com.kf48.backend.dto.RemplacerLienRequest;
 import com.kf48.backend.service.ExerciceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -37,5 +38,23 @@ public class ExerciceController {
     @PostMapping
     public ResponseEntity<ExerciceResponse> deposer(@Valid @RequestBody DeposerExerciceRequest requete) {
         return ResponseEntity.status(HttpStatus.CREATED).body(exerciceService.deposer(requete));
+    }
+
+    @Operation(
+            summary = "Remplacer le lien de son exercice",
+            description = "RG12 : le remplacement est accepté tant qu'aucun relecteur n'est assigné, et refusé "
+                    + "dès qu'un relecteur l'est — même si la relecture n'a pas encore été rendue. "
+                    + "La colonne modifie_at est mise à jour.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Lien remplacé"),
+                    @ApiResponse(responseCode = "400", description = "LIEN_INVALIDE ou CHAMP_MANQUANT"),
+                    @ApiResponse(responseCode = "404", description = "EXERCICE_INCONNU"),
+                    @ApiResponse(responseCode = "409", description = "RELECTEUR_DEJA_ASSIGNE")
+            }
+    )
+    @PutMapping("/{id}")
+    public ResponseEntity<ExerciceResponse> remplacerLien(@PathVariable Long id,
+                                                           @Valid @RequestBody RemplacerLienRequest requete) {
+        return ResponseEntity.ok(exerciceService.remplacerLien(id, requete));
     }
 }
