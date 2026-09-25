@@ -224,3 +224,23 @@
   font-weight: 700;
   color: var(--accent);
 }
+
+/* EF11 : tableau recapitulatif du formateur */
+.tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+.tableau th,
+.tableau td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.tableau th {
+  font-weight: 600;
+  color: var(--text-h);
+}
+.tableau tbody tr:hover {
+  background: var(--accent-bg);
+}
