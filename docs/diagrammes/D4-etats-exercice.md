@@ -5,12 +5,11 @@ stateDiagram-v2
     [*] --> Deposé : POST /api/exercices (EF3)
 
     Deposé --> Deposé : remplacement du lien (EF4, RG12 — tant qu'aucun relecteur assigné)
-    Deposé --> EnAttenteDeRelecture : relecteur assigné (RG6)
+    Deposé --> EnAttenteDeRelecture : deux relecteurs assignés (RG6, RG5 révisée)
 
-    EnAttenteDeRelecture --> Relu : POST /api/relectures/{id} (EF6, RG8)
-    EnAttenteDeRelecture --> EnAttenteDeRelecture : session clôturée sans relecture rendue (RG10 — reste visible "en attente" dans le tableau)
+    EnAttenteDeRelecture --> EnAttenteDeRelecture : 1re relecture rendue (RG18 — note provisoire, l'exercice reste en attente de la 2e)
+    EnAttenteDeRelecture --> Relu : les 2 relectures sont rendues (EF6, RG8, RG17 — note = moyenne des deux)
+    EnAttenteDeRelecture --> EnAttenteDeRelecture : session clôturée sans les 2 relectures rendues (RG10 — reste visible "en attente" dans le tableau)
 
-    Relu --> Relu : correction de la note (EF7, RG9 — tant que session non clôturée)
     Relu --> [*] : session clôturée (RG14 — note figée définitivement)
-    EnAttenteDeRelecture --> [*] : session clôturée sans relecteur trouvé (RG6 — exercice reste "en attente" au sens du tableau, aucune transition possible ensuite)
 ```
