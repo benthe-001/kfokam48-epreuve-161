@@ -1,0 +1,32 @@
+# Java / Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+hs_err_pid*
+
+# Node / front
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+npm-debug.log*
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Secrets et environnements locaux
+.env
+.env.*
+!.env.example
+application-local.properties
