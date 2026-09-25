@@ -1,13 +1,15 @@
 import { useState } from 'react'
+import { DeposerExercice } from './composants/DeposerExercice'
 import { MarquerPresence } from './composants/MarquerPresence'
 import { OuvrirSession } from './composants/OuvrirSession'
 import './App.css'
 
-type Onglet = 'formateur' | 'etudiant'
+type Onglet = 'formateur' | 'etudiant' | 'depot'
 
 const ONGLETS: { cle: Onglet; libelle: string }[] = [
   { cle: 'formateur', libelle: 'Formateur · Ouvrir une session' },
   { cle: 'etudiant', libelle: 'Étudiant · Marquer ma présence' },
+  { cle: 'depot', libelle: 'Étudiant · Déposer mon exercice' },
 ]
 
 function App() {
@@ -38,7 +40,13 @@ function App() {
         aria-labelledby={`onglet-${onglet}`}
         className="zone-contenu"
       >
-        {onglet === 'formateur' ? <OuvrirSession /> : <MarquerPresence />}
+        {onglet === 'formateur' ? (
+          <OuvrirSession />
+        ) : onglet === 'etudiant' ? (
+          <MarquerPresence />
+        ) : (
+          <DeposerExercice />
+        )}
       </div>
     </main>
   )

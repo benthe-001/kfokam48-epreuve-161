@@ -174,3 +174,9 @@
   margin: 0;
   color: var(--text-h);
 }
+
+.carte .note {
+  margin: 1rem 0 0;
+  color: var(--text-h);
+  font-size: 0.9rem;
+}

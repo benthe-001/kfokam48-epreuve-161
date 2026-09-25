@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 17 tests : 16 unitaires/intégration + contexte
+./mvnw.cmd test                  # 27 tests : 26 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -95,11 +95,21 @@ bloqué 2 minutes (429 `ETUDIANT_BLOQUE`), tous codes confondus ; le compteur es
 remis à zéro dès la première présence réussie. `CODE_EXPIRE` et `DEJA_PRESENT`
 ne comptent pas : ils prouvent que l'étudiant connaissait déjà un code valide.
 
-Le frontend expose deux écrans dans une navigation à onglets : *Formateur · Ouvrir
-une session* et *Étudiant · Marquer ma présence*. L'écran étudiant gère aussi le
-blocage RG3 (bouton désactivé avec décompte du temps restant).
+**EF4** (RG11, RG19) : le dépôt d'un exercice accepte le lien `http`/`https`,
+et le reste possible après l'expiration du code (RG11) tant que la session n'est
+pas explicitement clôturée. Refus : lien non conforme (400 `LIEN_INVALIDE`),
+session inexistante (404), session clôturée (409 `SESSION_CLOTUREE`) ou dépôt
+déjà effectué par le même étudiant sur cette session (409
+`EXERCICE_DEJA_DEPOSE`). Le statut initial est `DEPOSE` ; l'assignation d'un
+relecteur (RG6) arrive au ticket #6.
 
-Restant à faire : EF3 (dépôt d'exercice) à EF11 (tableau récapitulatif).
+Le frontend expose trois écrans dans une navigation à onglets : *Formateur ·
+Ouvrir une session*, *Étudiant · Marquer ma présence* et *Étudiant · Déposer mon
+exercice*. L'écran de présence gère aussi le blocage RG3 (bouton désactivé avec
+décompte du temps restant).
+
+Restant à faire : EF5 à EF11 (assignation du relecteur jusqu'au tableau
+récapitulatif).
 
 ## Format des erreurs
 
@@ -116,6 +126,10 @@ Toute erreur de l'API respecte le format imposé (B4) :
 | `CODE_EXPIRE` | 410 | session expirée (RG1) |
 | `DEJA_PRESENT` | 409 | présence déjà enregistrée (RG18) |
 | `ETUDIANT_BLOQUE` | 429 | trop de codes errés, blocage temporaire (RG3) |
+| `LIEN_INVALIDE` | 400 | lien d'exercice non conforme (http/https) |
+| `SESSION_INCONNUE` | 404 | session inexistante |
+| `EXERCICE_DEJA_DEPOSE` | 409 | exercice déjà déposé sur cette session (RG19) |
+| `SESSION_CLOTUREE` | 409 | dépôt sur une session clôturée (RG11) |
 | `REQUETE_INVALIDE` | 400 | corps de requête illisible |
 | `RESSOURCE_INTROUVABLE` | 404 | adresse inconnue |
 | `METHODE_NON_AUTORISEE` | 405 | méthode non supportée |
