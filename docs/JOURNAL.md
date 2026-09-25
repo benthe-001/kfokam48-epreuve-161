@@ -323,3 +323,43 @@ n'a pas été vérifié dans un navigateur : build `tsc` et lint passent, et le 
 clôture est couvert par un test d'intégration HTTP.
 
 
+## Étape 12 — Ticket #9 : consulter sa note et son commentaire (EF8, RG7)
+
+Fait : `GET /api/exercices/{id}`, le DTO `ExerciceDetailResponse` et
+`ExerciceService.consulter`. Le DTO reprend exactement le schéma du contrat
+(`id`, `sessionId`, `etudiantId`, `lien`, `statut`, `note`, `commentaire`) ; la
+relecture est retrouvée par `findByExerciceId` et n'est exposée qu'à travers la
+note et le commentaire. 9 tests ajoutés (5 côté service, 4 côté contrôleur) — le
+total passe à 81, tous verts. Côté frontend, un cinquième onglet *Étudiant ·
+Consulter ma note* qui affiche « Pas encore notée » tant que la relecture n'est
+pas rendue.
+
+Bloqué : rien de bloquant, et c'est notable — c'est le premier ticket où ni le
+contrat, ni le schéma, ni un code d'erreur n'ont eu besoin d'être touchés :
+`GET /api/exercices/{id}` et son schéma étaient déjà écrits, RG7 y était déjà
+matérialisé par l'absence de champ `relecteurId`. Le `RelectureRepository` était
+déjà injecté dans `ExerciceService` depuis le ticket #5 (contrôle RG12).
+
+RG7 : la règle « jamais l'identité du relecteur » est respectée par construction
+plutôt que par filtrage. Le DTO est un `record` à sept champs, rempli
+explicitement champ par champ — aucune sérialisation automatique de l'entité,
+donc aucun risque qu'un champ ajouté plus tard à `Relecture` se retrouve exposé
+par mégarde. Deux tests la vérifient : l'un inspecte les noms des composants du
+record, l'autre cherche le mot « relecteur » dans le corps JSON renvoyé par
+l'endpoint. Le second est volontairement plus large que le contrat, pour
+attraper aussi un `'relecteur':` qui aurait été ajouté à la main.
+
+IA : m'a aidé à trancher la manière de garantir RG7. Écrire le test en
+parcourant les champs du DTO suffisait, mais ne prouve que l'instant présent.
+J'ai ajouté la vérification sur le corps JSON réel : elle continuerait à passer
+même si quelqu'un contournait le DTO, et c'est le comportement observable qui
+compte pour une règle de confidentialité.
+
+Limite : comme pour l'identité du relecteur, l'endpoint ne vérifie pas que le
+demandeur est bien l'étudiant concerné — le projet n'a pas d'authentification
+(RG7 est respectée, mais elle protège d'une fuite de schéma, pas d'un appelant
+malveillant qui consulte l'exercice d'un autre). Par ailleurs, l'écran n'a pas été
+vérifié dans un navigateur : build `tsc` et lint passent, et les cinq cas HTTP
+sont couverts par les tests d'intégration.
+
+

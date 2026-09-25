@@ -6,6 +6,17 @@ export interface ExerciceDepose {
   statut: string
 }
 
+/** EF8 / RG7 : détail de l'exercice vu par l'étudiant. L'identité du relecteur n'est jamais renvoyée. */
+export interface ExerciceDetail {
+  id: number
+  sessionId: number
+  etudiantId: number
+  lien: string
+  statut: string
+  note?: number | null
+  commentaire?: string | null
+}
+
 export function deposerExercice(
   sessionId: number,
   etudiantId: number,
@@ -23,4 +34,9 @@ export function remplacerLienExercice(exerciceId: number, lien: string): Promise
     method: 'PUT',
     body: JSON.stringify({ lien }),
   })
+}
+
+/** EF8 : consulte sa note et son commentaire. RG7 : jamais l'identité du relecteur. */
+export function consulterExercice(exerciceId: number): Promise<ExerciceDetail> {
+  return appelApi<ExerciceDetail>(`/api/exercices/${exerciceId}`)
 }

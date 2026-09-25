@@ -1,8 +1,10 @@
 package com.kf48.backend.service;
 
 import com.kf48.backend.domain.Exercice;
+import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
 import com.kf48.backend.dto.DeposerExerciceRequest;
+import com.kf48.backend.dto.ExerciceDetailResponse;
 import com.kf48.backend.dto.ExerciceResponse;
 import com.kf48.backend.dto.RemplacerLienRequest;
 import com.kf48.backend.exception.MetierException;
@@ -77,5 +79,24 @@ public class ExerciceService {
 
         exercice.remplacerLien(requete.lien()); // entité managée : persistée par dirty checking
         return ExerciceResponse.depuis(exercice);
+    }
+
+    /**
+     * EF8 : l'étudiant relu consulte sa note et son commentaire.
+     *
+     * RG7 : la réponse ne contient ni l'identifiant ni le nom du relecteur. La relecture
+     * est simplement absente tant qu'elle n'est pas rendue : note et commentaire restent
+     * alors à null, ce qui est le comportement attendu par le contrat (champs nullables).
+     *
+     * La lecture est faite par findByExerciceId : l'exercice est la porte d'entrée, et
+     * la relecture n'est exposée qu'à travers les champs note et commentaire.
+     */
+    @Transactional(readOnly = true)
+    public ExerciceDetailResponse consulter(Long exerciceId) {
+        Exercice exercice = exerciceRepository.findById(exerciceId)
+                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNUE"));
+
+        Relecture relecture = relectureRepository.findByExerciceId(exerciceId).orElse(null);
+        return ExerciceDetailResponse.depuis(exercice, relecture);
     }
 }

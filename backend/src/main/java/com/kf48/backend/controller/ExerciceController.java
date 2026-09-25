@@ -1,6 +1,7 @@
 package com.kf48.backend.controller;
 
 import com.kf48.backend.dto.DeposerExerciceRequest;
+import com.kf48.backend.dto.ExerciceDetailResponse;
 import com.kf48.backend.dto.ExerciceResponse;
 import com.kf48.backend.dto.RemplacerLienRequest;
 import com.kf48.backend.service.ExerciceService;
@@ -56,5 +57,21 @@ public class ExerciceController {
     public ResponseEntity<ExerciceResponse> remplacerLien(@PathVariable Long id,
                                                            @Valid @RequestBody RemplacerLienRequest requete) {
         return ResponseEntity.ok(exerciceService.remplacerLien(id, requete));
+    }
+
+    @Operation(
+            summary = "Consulter sa note et son commentaire",
+            description = "EF8 : l'étudiant relu consulte le détail de son exercice. "
+                    + "RG7 : l'identité du relecteur n'apparaît jamais dans la réponse. "
+                    + "note et commentaire valent null tant que la relecture n'est pas rendue. "
+                    + "La réponse suit exactement le schéma du contrat.",
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "Détail de l'exercice"),
+                    @ApiResponse(responseCode = "404", description = "EXERCICE_INCONNUE")
+            }
+    )
+    @GetMapping("/{id}")
+    public ResponseEntity<ExerciceDetailResponse> consulter(@PathVariable Long id) {
+        return ResponseEntity.ok(exerciceService.consulter(id));
     }
 }

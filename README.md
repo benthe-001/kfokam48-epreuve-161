@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 72 tests : 71 unitaires/intégration + contexte
+./mvnw.cmd test                  # 81 tests : 80 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -127,16 +127,24 @@ commentaire d'une relecture déjà rendue. La correction est acceptée tant que 
 n'est pas clôturée ; après clôture par le formateur, elle est refusée (409
 `SESSION_CLOTUREE`) et la note reste figée. La date de premier rendu n'est pas modifiée.
 
-Le frontend expose quatre écrans dans une navigation à onglets : *Formateur ·
-Ouvrir une session*, *Étudiant · Marquer ma présence*, *Étudiant · Déposer mon
-exercice* et *Relecteur · Rendre ma relecture*. L'écran de présence gère aussi le
-blocage RG3 (bouton désactivé avec décompte du temps restant) ; l'écran de dépôt
-permet de remplacer son lien, et affiche pourquoi le remplacement devient
-indisponible dès qu'un relecteur est assigné ; l'écran de relecture valide la note
-côté client, affiche la note obtenue sur 20 et permet de la corriger.
+**EF8 — ticket #9** (RG7) : `GET /api/exercices/{id}` renvoie le détail de
+l'exercice avec la note et le commentaire dès qu'ils sont rendus, sinon à `null`.
+L'identité du relecteur n'apparaît nulle part dans la réponse : le DTO est un
+`record` rempli champ par champ, et un test vérifie l'absence de tout champ
+mentionnant le relecteur dans le corps JSON renvoyé.
 
-Restant à faire : EF8 à EF11 (consultation de sa note par l'étudiant, clôture de
-session, présence manuelle du formateur, tableau récapitulatif).
+Le frontend expose cinq écrans dans une navigation à onglets : *Formateur ·
+Ouvrir une session*, *Étudiant · Marquer ma présence*, *Étudiant · Déposer mon
+exercice*, *Étudiant · Consulter ma note* et *Relecteur · Rendre ma relecture*.
+L'écran de présence gère aussi le blocage RG3 (bouton désactivé avec décompte
+du temps restant) ; l'écran de dépôt permet de remplacer son lien, et affiche
+pourquoi le remplacement devient indisponible dès qu'un relecteur est assigné ;
+l'écran de relecture valide la note côté client, affiche la note obtenue sur 20
+et permet de la corriger ; l'écran de consultation affiche « Pas encore notée »
+tant que la relecture n'est pas rendue.
+
+Restant à faire : EF9, EF10 et EF11 (clôture de session par le formateur,
+présence manuelle du formateur, tableau récapitulatif).
 
 ## Format des erreurs
 

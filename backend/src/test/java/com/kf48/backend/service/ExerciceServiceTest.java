@@ -1,12 +1,16 @@
 package com.kf48.backend.service;
 
+import com.kf48.backend.domain.Presence;
 import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
 import com.kf48.backend.dto.DeposerExerciceRequest;
+import com.kf48.backend.dto.ExerciceDetailResponse;
 import com.kf48.backend.dto.ExerciceResponse;
 import com.kf48.backend.dto.RemplacerLienRequest;
+import com.kf48.backend.dto.RendreRelectureRequest;
 import com.kf48.backend.exception.MetierException;
 import com.kf48.backend.repository.ExerciceRepository;
+import com.kf48.backend.repository.PresenceRepository;
 import com.kf48.backend.repository.RelectureRepository;
 import com.kf48.backend.repository.SessionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +20,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,9 +33,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ExerciceServiceTest {
 
     @Autowired private ExerciceService exerciceService;
+    @Autowired private RelectureService relectureService;
     @Autowired private SessionRepository sessionRepository;
     @Autowired private ExerciceRepository exerciceRepository;
     @Autowired private RelectureRepository relectureRepository;
+    @Autowired private PresenceRepository presenceRepository;
 
     private static final String LIEN = "https://github.com/etudiant/exercice-1";
 
@@ -137,4 +145,75 @@ class ExerciceServiceTest {
                 .isInstanceOfSatisfying(MetierException.class,
                         e -> assertThat(e.getCode()).isEqualTo("EXERCICE_INCONNU"));
     }
+
+    // ---- EF8 / RG7 : consultation de sa note et de son commentaire ----
+
+    /** Depose un exercice et renvoie son id ; l'etudiant 2 est present pour forcer l'assignation. */
+    private Long deposerAvecRelecteur() {
+        presenceRepository.save(new Presence(session.getId(), 2L, Presence.Source.ETUDIANT));
+        return exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
+    }
+
+    @Test
+    void noteEtCommentaireVisiblesDesQuIlsSontRendus() { // EF8
+        Long id = deposerAvecRelecteur();
+        Relecture relecture = relectureRepository.findByExerciceId(id).orElseThrow();
+        relectureService.rendre(relecture.getId(),
+                new RendreRelectureRequest(BigDecimal.valueOf(14), "Bon travail dans l'ensemble."));
+
+        ExerciceDetailResponse detail = exerciceService.consulter(id);
+
+        assertThat(detail.note()).isEqualTo(14);
+        assertThat(detail.commentaire()).isEqualTo("Bon travail dans l'ensemble.");
+        assertThat(detail.statut()).isEqualTo("NOTE");
+        assertThat(detail.lien()).isEqualTo(LIEN);
+        assertThat(detail.etudiantId()).isEqualTo(1L);
+        assertThat(detail.sessionId()).isEqualTo(session.getId());
+    }
+
+    @Test
+    void noteEtCommentaireRestentNulsAvantLeRendu() { // EF8
+        Long id = deposerAvecRelecteur(); // relecteur assigné, mais rien de rendu
+
+        ExerciceDetailResponse detail = exerciceService.consulter(id);
+
+        assertThat(detail.statut()).isEqualTo("EN_ATTENTE_RELECTURE");
+        assertThat(detail.note()).isNull();
+        assertThat(detail.commentaire()).isNull();
+    }
+
+    @Test
+    void laConsultationFonctionneSansAucuneRelecture() {
+        Long id = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
+
+        ExerciceDetailResponse detail = exerciceService.consulter(id);
+
+        assertThat(detail.statut()).isEqualTo("DEPOSE");
+        assertThat(detail.note()).isNull();
+        assertThat(detail.commentaire()).isNull();
+    }
+
+    @Test
+    void laConsultationNeFuitJamaisLIdentiteDuRelecteur() { // RG7
+        Long id = deposerAvecRelecteur();
+        Relecture relecture = relectureRepository.findByExerciceId(id).orElseThrow();
+        relectureService.rendre(relecture.getId(),
+                new RendreRelectureRequest(BigDecimal.valueOf(14), "OK"));
+        assertThat(relecture.getRelecteurId()).isNotNull(); // la donnée existe bien en base
+
+        // Aucun champ du DTO ne doit permettre d'identifier le relecteur
+        assertThat(Arrays.stream(ExerciceDetailResponse.class.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName))
+                .doesNotContain("relecteurId", "relecteur", "relecteurNom", "idRelecteur");
+    }
+
+    @Test
+    void laConsultationRefuseePourUnExerciceInconnu() {
+        assertThatThrownBy(() -> exerciceService.consulter(999999L))
+                .isInstanceOfSatisfying(MetierException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("EXERCICE_INCONNUE");
+                    assertThat(e.getStatut().value()).isEqualTo(404);
+                });
+    }
+
 }
