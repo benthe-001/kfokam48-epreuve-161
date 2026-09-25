@@ -216,7 +216,7 @@ class ExerciceControllerIntegrationTest {
     void consulterUnExerciceInconnuRenvoie404() throws Exception {
         mockMvc.perform(get("/api/exercices/999999"))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.code").value("EXERCICE_INCONNUE"));
+                .andExpect(jsonPath("$.code").value("EXERCICE_INCONNU"));
     }
 
 }

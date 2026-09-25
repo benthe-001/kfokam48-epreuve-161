@@ -67,7 +67,7 @@ public class ExerciceController {
                     + "La réponse suit exactement le schéma du contrat.",
             responses = {
                     @ApiResponse(responseCode = "200", description = "Détail de l'exercice"),
-                    @ApiResponse(responseCode = "404", description = "EXERCICE_INCONNUE")
+                    @ApiResponse(responseCode = "404", description = "EXERCICE_INCONNU")
             }
     )
     @GetMapping("/{id}")

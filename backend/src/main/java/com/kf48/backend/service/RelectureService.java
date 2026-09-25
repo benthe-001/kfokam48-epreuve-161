@@ -46,7 +46,7 @@ public class RelectureService {
                 .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "RELECTURE_INCONNUE"));
 
         Exercice exercice = exerciceRepository.findById(relecture.getExerciceId())
-                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNUE"));
+                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNU"));
 
         if (relecture.getRelecteurId().equals(exercice.getEtudiantId())) { // RG4 : auto-relecture interdite
             throw new MetierException(HttpStatus.FORBIDDEN, "AUTO_RELECTURE");
@@ -78,7 +78,7 @@ public class RelectureService {
                 .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "RELECTURE_INCONNUE"));
 
         Exercice exercice = exerciceRepository.findById(relecture.getExerciceId())
-                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNUE"));
+                .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "EXERCICE_INCONNU"));
 
         SessionCours session = sessionRepository.findById(exercice.getSessionId())
                 .orElseThrow(() -> new MetierException(HttpStatus.NOT_FOUND, "SESSION_INCONNUE"));

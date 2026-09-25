@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { SessionOuverte } from '../api/sessions'
-import { ouvrirSession } from '../api/sessions'
+import { cloturerSession, ouvrirSession } from '../api/sessions'
 import { ErreurApi } from '../api/client'
 import { PROMOTIONS } from '../donneesDemo'
 
@@ -24,14 +24,39 @@ export function OuvrirSession() {
   const [enCours, setEnCours] = useState(false)
   const [session, setSession] = useState<SessionOuverte | null>(null)
   const [erreur, setErreur] = useState<string | null>(null)
+  const [cloturee, setCloturee] = useState(false)
 
   async function soumettre() {
     if (enCours) return
     setEnCours(true)
     setSession(null)
     setErreur(null)
+    setCloturee(false)
     try {
       setSession(await ouvrirSession(titre.trim(), promotionId))
+    } catch (e) {
+      if (e instanceof ErreurApi) {
+        setErreur(`${e.code} — ${e.message}`)
+      } else {
+        setErreur('Erreur inattendue.')
+      }
+    } finally {
+      setEnCours(false)
+    }
+  }
+
+  /**
+   * EF9 : la clôture est un acte volontaire distinct de l'expiration du code (RG14).
+   * Elle est définitive : une fois close, la session refuse dépôts, remplacements
+   * de lien et corrections de note.
+   */
+  async function cloturer() {
+    if (enCours || !session || cloturee) return
+    setEnCours(true)
+    setErreur(null)
+    try {
+      await cloturerSession(session.id)
+      setCloturee(true)
     } catch (e) {
       if (e instanceof ErreurApi) {
         setErreur(`${e.code} — ${e.message}`)
@@ -120,6 +145,27 @@ export function OuvrirSession() {
               <dd>{formaterDate(session.expirationAt)}</dd>
             </div>
           </dl>
+
+          <h3>Clôturer la session</h3>
+          <p className="note">
+            EF9 / RG14 : la clôture est un acte volontaire, distinct de l&apos;expiration
+            automatique du code au bout de 15 minutes. Une fois clôturée, la session refuse
+            les dépôts d&apos;exercice, les remplacements de lien et les corrections de note.
+            Les exercices non encore relus restent visibles comme « en attente ».
+          </p>
+          <button
+            type="button"
+            className="action secondaire"
+            onClick={() => void cloturer()}
+            disabled={enCours || cloturee}
+          >
+            {cloturee ? 'Session clôturée' : enCours ? 'Clôture…' : 'Clôturer la session'}
+          </button>
+          {cloturee && (
+            <p className="succes" role="status">
+              Session clôturée : plus aucune modification n&apos;est possible.
+            </p>
+          )}
         </section>
       )}
     </section>

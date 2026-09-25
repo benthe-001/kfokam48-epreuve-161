@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 81 tests : 80 unitaires/intégration + contexte
+./mvnw.cmd test                  # 91 tests : 90 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -133,18 +133,28 @@ L'identité du relecteur n'apparaît nulle part dans la réponse : le DTO est un
 `record` rempli champ par champ, et un test vérifie l'absence de tout champ
 mentionnant le relecteur dans le corps JSON renvoyé.
 
-Le frontend expose cinq écrans dans une navigation à onglets : *Formateur ·
-Ouvrir une session*, *Étudiant · Marquer ma présence*, *Étudiant · Déposer mon
-exercice*, *Étudiant · Consulter ma note* et *Relecteur · Rendre ma relecture*.
-L'écran de présence gère aussi le blocage RG3 (bouton désactivé avec décompte
-du temps restant) ; l'écran de dépôt permet de remplacer son lien, et affiche
-pourquoi le remplacement devient indisponible dès qu'un relecteur est assigné ;
-l'écran de relecture valide la note côté client, affiche la note obtenue sur 20
-et permet de la corriger ; l'écran de consultation affiche « Pas encore notée »
-tant que la relecture n'est pas rendue.
+**EF9 — ticket #10** (RG11, RG14, RG10) : `POST /api/sessions/{id}/cloture` clôt
+explicitement la session. La clôture est un acte volontaire du formateur,
+distinct de l'expiration automatique du code au bout de 15 minutes (RG14) ; une
+session déjà close est refusée (409 `SESSION_DEJA_CLOTUREE`). Après clôture, les
+dépôts d'exercice, les remplacements de lien et les corrections de note sont
+refusés en 409 `SESSION_CLOTUREE`. RG10 : les exercices sans relecture rendue
+restent au statut `EN_ATTENTE_RELECTURE` et restent consultables — la clôture ne
+supprime ni ne modifie aucun exercice.
 
-Restant à faire : EF9, EF10 et EF11 (clôture de session par le formateur,
-présence manuelle du formateur, tableau récapitulatif).
+Le frontend expose cinq écrans dans une navigation à onglets : *Formateur ·
+Ouvrir une session* (avec le bouton de clôture), *Étudiant · Marquer ma
+présence*, *Étudiant · Déposer mon exercice*, *Étudiant · Consulter ma note* et
+*Relecteur · Rendre ma relecture*. L'écran de présence gère aussi le blocage
+RG3 (bouton désactivé avec décompte du temps restant) ; l'écran de dépôt
+permet de remplacer son lien, et affiche pourquoi le remplacement devient
+indisponible dès qu'un relecteur est assigné ; l'écran de relecture valide la
+note côté client, affiche la note obtenue sur 20 et permet de la corriger ;
+l'écran de consultation affiche « Pas encore notée » tant que la relecture n'est
+pas rendue.
+
+Restant à faire : EF10 et EF11 (présence manuelle du formateur, tableau
+récapitulatif par étudiant).
 
 ## Format des erreurs
 

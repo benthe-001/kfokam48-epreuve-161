@@ -363,3 +363,47 @@ vérifié dans un navigateur : build `tsc` et lint passent, et les cinq cas HTTP
 sont couverts par les tests d'intégration.
 
 
+## Étape 13 — Ticket #10 : le formateur clôture une session (EF9, RG14, RG10)
+
+Fait : `POST /api/sessions/{id}/cloture`, `SessionService.cloturer` et le DTO
+`SessionClotureResponse`. La transition de domaine `SessionCours.cloturer()`
+avait été écrite au ticket #8 : il ne restait qu'à l'exposer. Le contrôle de
+clôture manquant a été ajouté au remplacement de lien ; ceux du dépôt (RG11,
+ticket #4) et de la correction de note (RG9, ticket #8) étaient déjà en place.
+10 tests ajoutés (4 côté service, 3 côté contrôleur session, 3 côté exercice) —
+le total passe à 91, tous verts. Côté frontend, l'écran « Ouvrir une session »
+propose un bouton de clôture qui se verrouille une fois la session close.
+
+Bloqué : RG10 (« visible comme tel **dans le tableau** ») renvoie au tableau
+récapitulatif, qui est EF11 et n'existe pas encore. Ce que je peux garantir dès
+maintenant, et ce que j'ai testé, c'est que la clôture ne modifie aucun
+exercice : ceux qui n'ont pas de relecture rendue restent au statut
+`EN_ATTENTE_RELECTURE`, restent consultables par leur auteur, et leur note reste
+absente. La partie « visible dans le tableau » tombera avec EF11.
+
+**Un vrai bug trouvé au passage, que ce ticket a révélé.** Deux orthographes du
+code d'erreur coexistaient : `EXERCICE_INCONNU` (celle du contrat et du
+`MessagesErreur`) et `EXERCICE_INCONNUE`, que j'avais écrite au ticket #9 en
+ajoutant la consultation. Deux conséquences : les 404 de `consulter` et de
+`RelectureService` renvoyaient un code absent du dictionnaire, donc un message
+de repli générique (« La requête est invalide. ») au lieu d'un libellé
+explicite ; et la réponse ne respectait plus le contrat. J'ai normalisé les six
+occurrences sur `EXERCICE_INCONNU`, qui est la forme du contrat.
+
+IA : m'a aidé à repérer ce problème d'orthographe, qui était invisible à la
+lecture — deux chaînes presque identiques dans deux fichiers voisins. Il est
+sorti en cherchant pourquoi `remplacerLien` contenait `EXERCICE_INCONNU` alors
+que je croyais avoir écrit la même chose partout. Vérifié en comparant
+systématiquement le code, le contrat et le dictionnaire des messages.
+
+Limite : j'ai d'abord posé le contrôle de clôture au mauvais endroit — dans
+`consulter` au lieu de `remplacerLien`, les deux méthodes commençant par la même
+ligne. C'était grave : un étudiant n'aurait plus pu lire sa note après la
+clôture, ce que RG10 exige précisément le contraire. Repéré en relisant le fichier
+juste après l'édition, avant de lancer les tests ; un commentaire explicite
+reste dans `consulter` pour que la confusion ne revienne pas. Par ailleurs,
+comme pour les tickets précédents, l'écran n'a pas été vérifié dans un
+navigateur : build `tsc` et lint passent, et les trois cas HTTP de la clôture
+sont couverts par des tests d'intégration.
+
+
