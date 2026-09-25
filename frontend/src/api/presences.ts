@@ -13,3 +13,14 @@ export function marquerPresence(code: string, etudiantId: number): Promise<Prese
     body: JSON.stringify({ code, etudiantId }),
   })
 }
+
+/** EF10 / RG13 : le formateur ajoute une présence manuelle (source FORMATEUR). */
+export function ajouterPresenceFormateur(
+  sessionId: number,
+  etudiantId: number,
+): Promise<PresenceEnregistree> {
+  return appelApi<PresenceEnregistree>(`/api/sessions/${sessionId}/presences`, {
+    method: 'POST',
+    body: JSON.stringify({ etudiantId }),
+  })
+}
