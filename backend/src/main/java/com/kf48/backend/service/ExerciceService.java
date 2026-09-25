@@ -16,10 +16,14 @@ public class ExerciceService {
 
     private final SessionRepository sessionRepository;
     private final ExerciceRepository exerciceRepository;
+    private final AssignationRelecteurService assignationRelecteurService;
 
-    public ExerciceService(SessionRepository sessionRepository, ExerciceRepository exerciceRepository) {
+    public ExerciceService(SessionRepository sessionRepository,
+                           ExerciceRepository exerciceRepository,
+                           AssignationRelecteurService assignationRelecteurService) {
         this.sessionRepository = sessionRepository;
         this.exerciceRepository = exerciceRepository;
+        this.assignationRelecteurService = assignationRelecteurService;
     }
 
     @Transactional
@@ -38,7 +42,14 @@ public class ExerciceService {
             throw new MetierException(HttpStatus.CONFLICT, "EXERCICE_DEJA_DEPOSE");
         }
 
-        Exercice exercice = new Exercice(requete.sessionId(), requete.etudiantId(), requete.lien());
-        return ExerciceResponse.depuis(exerciceRepository.save(exercice));
+        Exercice exercice = exerciceRepository.save(
+                new Exercice(requete.sessionId(), requete.etudiantId(), requete.lien()));
+
+        // RG6 : le dépôt peut lui-même rendre l'assignation possible (un autre étudiant est déjà présent)
+        assignationRelecteurService.tenterAssignerPourSession(requete.sessionId());
+
+        // La réponse reflète l'état réel après tentative : EN_ATTENTE_RELECTURE si un relecteur
+        // a pu être tiré, DEPOSE sinon (personne n'est encore présent).
+        return ExerciceResponse.depuis(exercice);
     }
 }

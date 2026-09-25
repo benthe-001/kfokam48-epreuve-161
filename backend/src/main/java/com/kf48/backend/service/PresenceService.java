@@ -21,13 +21,16 @@ public class PresenceService {
     private final SessionRepository sessionRepository;
     private final PresenceRepository presenceRepository;
     private final TentativeBlocageRepository tentativeBlocageRepository;
+    private final AssignationRelecteurService assignationRelecteurService;
 
     public PresenceService(SessionRepository sessionRepository,
                            PresenceRepository presenceRepository,
-                           TentativeBlocageRepository tentativeBlocageRepository) {
+                           TentativeBlocageRepository tentativeBlocageRepository,
+                           AssignationRelecteurService assignationRelecteurService) {
         this.sessionRepository = sessionRepository;
         this.presenceRepository = presenceRepository;
         this.tentativeBlocageRepository = tentativeBlocageRepository;
+        this.assignationRelecteurService = assignationRelecteurService;
     }
 
     @Transactional
@@ -57,7 +60,12 @@ public class PresenceService {
         tentative.reinitialiser(); // RG3 : succes -> compteur remis a zero
         tentativeBlocageRepository.save(tentative);
 
-        Presence presence = new Presence(session.getId(), requete.etudiantId(), Presence.Source.ETUDIANT); // RG13
-        return PresenceResponse.depuis(presenceRepository.save(presence));
+        Presence presence = presenceRepository.save(
+                new Presence(session.getId(), requete.etudiantId(), Presence.Source.ETUDIANT)); // RG13
+
+        // RG6 : un nouvel arrivant peut débloquer les exercices encore sans relecteur
+        assignationRelecteurService.tenterAssignerPourSession(session.getId());
+
+        return PresenceResponse.depuis(presence);
     }
 }

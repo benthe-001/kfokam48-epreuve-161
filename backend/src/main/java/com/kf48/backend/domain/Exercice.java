@@ -38,8 +38,13 @@ public class Exercice {
         this.sessionId = sessionId;
         this.etudiantId = etudiantId;
         this.lien = lien;
-        this.statut = Statut.DEPOSE; // l'assignation d'un relecteur (RG6) arrivera au ticket #6
+        this.statut = Statut.DEPOSE; // devient EN_ATTENTE_RELECTURE dès qu'un relecteur est tiré (RG6, ticket #6)
         this.deposeAt = OffsetDateTime.now();
+    }
+
+    /** RG6 : un relecteur vient d'être assigné, l'exercice entre dans la file de relecture. */
+    public void marquerEnAttenteRelecture() {
+        this.statut = Statut.EN_ATTENTE_RELECTURE;
     }
 
     public Long getId() { return id; }
