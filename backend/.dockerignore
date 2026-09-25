@@ -1,0 +1,18 @@
+# Artefacts de build
+target/
+*.class
+*.jar
+
+# VCS / IDE
+.git
+.idea/
+.vscode/
+*.iml
+
+# Secrets / locaux
+.env
+.env.*
+application-local.properties
+
+# Logs
+*.log
