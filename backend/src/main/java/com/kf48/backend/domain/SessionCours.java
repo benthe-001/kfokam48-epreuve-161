@@ -54,4 +54,14 @@ public class SessionCours {
 
     /** RG14 : la session reste ouverte jusqu'a sa cloture explicite (endpoint du ticket #10). */
     public Statut getStatut() { return statut; }
+
+    /**
+     * RG14 / RG9 : cloture explicite par le formateur, distincte de l'expiration du code.
+     * L'endpoint POST /api/sessions/{id}/cloture arrive au ticket #10 ; la transition de
+     * domaine est desormais disponible pour que RG9 (et RG11, ticket #4) soient testables.
+     */
+    public void cloturer() {
+        this.statut = Statut.CLOTUREE;
+        this.clotureAt = OffsetDateTime.now();
+    }
 }

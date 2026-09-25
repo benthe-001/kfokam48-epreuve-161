@@ -4,6 +4,7 @@ import com.kf48.backend.domain.Exercice;
 import com.kf48.backend.domain.Presence;
 import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
+import com.kf48.backend.dto.CorrigerNoteRequest;
 import com.kf48.backend.dto.DeposerExerciceRequest;
 import com.kf48.backend.dto.MarquerPresenceRequest;
 import com.kf48.backend.dto.RelectureResponse;
@@ -157,5 +158,89 @@ class RelectureServiceTest {
         assertThat(apres.getRendueAt()).isNull();
         assertThat(exerciceRepository.findById(exerciceId).orElseThrow().getStatut())
                 .isEqualTo(Exercice.Statut.EN_ATTENTE_RELECTURE);
+    }
+
+    // ---- EF7 / RG9 : correction d'une note déjà rendue ----
+
+    private static CorrigerNoteRequest corriger(int note) {
+        return new CorrigerNoteRequest(BigDecimal.valueOf(note), "Note corrigée après relecture.");
+    }
+
+    /** Rend la relecture du @BeforeEach pour pouvoir la corriger ensuite. */
+    private void rendreLaRelecture(int note) {
+        relectureService.rendre(relecture().getId(), rendre(note));
+    }
+
+    @Test
+    void correctionAccepteeTantQueLaSessionEstOuverte() { // RG9
+        rendreLaRelecture(10);
+
+        RelectureResponse reponse = relectureService.corriger(relecture().getId(), corriger(16));
+
+        assertThat(reponse.note()).isEqualTo(16);
+        assertThat(reponse.commentaire()).isEqualTo("Note corrigée après relecture.");
+        assertThat(relecture().getNote()).isEqualTo(16);
+    }
+
+    @Test
+    void laCorrectionNeChangePasLaDateDeRendu() {
+        rendreLaRelecture(10);
+        var premierRendu = relecture().getRendueAt();
+
+        relectureService.corriger(relecture().getId(), corriger(16));
+
+        assertThat(relecture().getRendueAt()).isEqualTo(premierRendu);
+    }
+
+    @Test
+    void correctionRefuseeApresClotureDeLaSession() { // RG9 : la note est figée
+        rendreLaRelecture(10);
+        session.cloturer(); // RG14 : clôture explicite du formateur
+
+        assertThatThrownBy(() -> relectureService.corriger(relecture().getId(), corriger(16)))
+                .isInstanceOfSatisfying(MetierException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("SESSION_CLOTUREE");
+                    assertThat(e.getStatut().value()).isEqualTo(409);
+                });
+
+        assertThat(relecture().getNote()).isEqualTo(10); // inchangée
+    }
+
+    @Test
+    void laClotureEstVerifieeAvantLeRenduDeLaRelecture() {
+        // Une session clôturée refuse aussi la correction d'une relecture jamais rendue :
+        // l'ordre des contrôles place RG9 avant le contrôle de rendu.
+        session.cloturer();
+
+        assertThatThrownBy(() -> relectureService.corriger(relecture().getId(), corriger(16)))
+                .isInstanceOfSatisfying(MetierException.class,
+                        e -> assertThat(e.getCode()).isEqualTo("SESSION_CLOTUREE"));
+    }
+
+    @Test
+    void corrigerUneRelectureJamaisRendueRenvoie404() {
+        assertThat(relecture().getRendueAt()).isNull();
+
+        assertThatThrownBy(() -> relectureService.corriger(relecture().getId(), corriger(16)))
+                .isInstanceOfSatisfying(MetierException.class, e -> {
+                    assertThat(e.getCode()).isEqualTo("RELECTURE_INCONNUE");
+                    assertThat(e.getStatut().value()).isEqualTo(404);
+                });
+    }
+
+    @Test
+    void corrigerUneRelectureInconnueRenvoie404() {
+        assertThatThrownBy(() -> relectureService.corriger(999999L, corriger(16)))
+                .isInstanceOfSatisfying(MetierException.class, e ->
+                        assertThat(e.getCode()).isEqualTo("RELECTURE_INCONNUE"));
+    }
+
+    @Test
+    void laCorrectionLaisseLExerciceAuStatutNote() {
+        rendreLaRelecture(10);
+        relectureService.corriger(relecture().getId(), corriger(16));
+
+        assertThat(exerciceRepository.findById(exerciceId).orElseThrow().getStatut())
+                .isEqualTo(Exercice.Statut.NOTE);
     }
 }

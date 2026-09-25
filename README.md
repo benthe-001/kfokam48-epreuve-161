@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 60 tests : 59 unitaires/intégration + contexte
+./mvnw.cmd test                  # 72 tests : 71 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -122,16 +122,21 @@ auto-relecture (403 `AUTO_RELECTURE`), relecture déjà rendue (409
 L'identité du relecteur n'apparaît jamais dans la réponse (RG7), et une relecture
 rendue est définitive.
 
+**EF7 — ticket #8** (RG8, RG9) : `PUT /api/relectures/{id}` corrige la note et le
+commentaire d'une relecture déjà rendue. La correction est acceptée tant que la session
+n'est pas clôturée ; après clôture par le formateur, elle est refusée (409
+`SESSION_CLOTUREE`) et la note reste figée. La date de premier rendu n'est pas modifiée.
+
 Le frontend expose quatre écrans dans une navigation à onglets : *Formateur ·
 Ouvrir une session*, *Étudiant · Marquer ma présence*, *Étudiant · Déposer mon
 exercice* et *Relecteur · Rendre ma relecture*. L'écran de présence gère aussi le
 blocage RG3 (bouton désactivé avec décompte du temps restant) ; l'écran de dépôt
 permet de remplacer son lien, et affiche pourquoi le remplacement devient
 indisponible dès qu'un relecteur est assigné ; l'écran de relecture valide la note
-côté client et affiche la note obtenue sur 20.
+côté client, affiche la note obtenue sur 20 et permet de la corriger.
 
-Restant à faire : EF7 à EF11 (correction de note, affectation de plusieurs
-relecteurs, clôture de session, tableau récapitulatif).
+Restant à faire : EF8 à EF11 (consultation de sa note par l'étudiant, clôture de
+session, présence manuelle du formateur, tableau récapitulatif).
 
 ## Format des erreurs
 

@@ -289,3 +289,37 @@ comme pour les étapes précédentes, l'écran n'a pas été vérifié dans un n
 build `tsc` et lint passent, l'appel HTTP est couvert côté intégration.
 
 
+## Étape 11 — Ticket #8 : corriger une note déjà envoyée (EF7, RG9)
+
+Fait : `PUT /api/relectures/{id}`, la transition de domaine `Relecture.corriger`,
+un `CorrigerNoteRequest` et la méthode `RelectureService.corriger`. RG9 est appliqué en
+allant chercher la session de l'exercice : la correction est acceptée tant que la session
+n'est pas clôturée, et refusée en 409 `SESSION_CLOTUREE` après. L'ordre des contrôles est
+délibéré — on teste la clôture **avant** de vérifier que la relecture a été rendue, pour
+qu'une session clôturée ne rende jamais une correction possible. 12 tests ajoutés
+(7 côté service, 5 côté contrôleur) — le total passe à 72, tous verts. Côté frontend,
+l'écran de relecture propose un bouton « Corriger ma note » après un rendu réussi.
+
+Bloqué : il manquait un moyen de rendre l'état `CLOTUREE` atteignable. L'endpoint de
+clôture est celui du ticket #10, mais RG9 ne peut pas être testé sans lui : j'ai donc
+ajouté la transition de domaine `SessionCours.cloturer()` (statut + `clotureAt`),
+sans créer l'endpoint. C'est exactement la même anticipation que `SESSION_CLOTUREE`
+écrit au ticket #4 pour RG11 : le ticket #10 n'aura qu'à exposer cette méthode. Aucun
+contrat n'a eu besoin d'être modifié — `PUT /api/relectures/{id}` documentait déjà
+200, 400, 404 et 409 `SESSION_CLOTUREE`. Aucun code d'erreur nouveau non plus.
+
+IA : m'a aidé sur un trou du contrat plutôt que sur du code. Que répondre si on
+correcte une relecture qui n'a jamais été rendue ? Le contrat ne définit aucun code
+pour ce cas. Plutôt que d'en inventer un, j'ai renvoyé 404 `RELECTURE_INCONNUE`, au
+mot que la ressource visée par ce `PUT` — *la note déjà envoyée* — n'existe pas encore.
+C'est un choix discutable et je l'ai signalé à la relecture du commanditaire : un code
+dédié (`RELECTURE_NON_RENDUE`) serait plus honnête si le contrat évolue. Vérifié par un
+test dédié, puis par la suite complète (72) et le build frontend.
+
+Limite : `rendue_at` n'est pas modifié par une correction, faute de colonne
+`modifie_at` sur la table `relecture` — impossible de savoir quand une note a été
+corrigée. La date indique uniquement le premier rendu. De même, l'écran de correction
+n'a pas été vérifié dans un navigateur : build `tsc` et lint passent, et le refus après
+clôture est couvert par un test d'intégration HTTP.
+
+
