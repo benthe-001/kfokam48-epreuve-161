@@ -545,3 +545,30 @@ contrat n'en décrivant aucun. C'est écrit dans la section 7 du cahier des char
 comme un hors-périmètre assumé, et c'est le point à trancher en premier avec le client.
 
 
+
+## Étape 17 — Vérification que le correctif et le changement se composent
+
+Fait : les deux branches develops en parallele ne s'etaient jamais rencontrees. Le
+correctif (#25) ajoute un verrou pessimiste dans `tenterAssignerPourSession`, et le
+changement de besoin (#27) reecrit cette meme methode pour tirer deux relecteurs. Un seul
+fichier se chevauche entre les deux branches : `AssignationRelecteurService.java`.
+
+Plutot que de le supposer, j'ai rebase la branche du changement de besoin sur celle du
+correctif, resolu le conflit en **conservant les deux** — le verrou ET la logique des
+deux relecteurs — et lance la suite complete.
+
+Verification : **114 tests, 0 echec**. Le test de concurrence de l'issue #25 passe donc
+toujours avec le modele a deux relecteurs : les deux transactions restent serialisees, et
+la seconde constate apres le commit de la premiere que l'exercice a deja ses deux
+relecteurs. Le correctif n'a pas ete annule par le changement de besoin, et l'inverse non
+plus.
+
+Consequence sur les pull requests : la PR #28 est desormais empilee sur la PR #26.
+Son diff ne contient QUE le changement de besoin (27 fichiers), mais elle ne peut etre
+fusionnee qu'apres #26. C'est la seule facon honnete de garantir que ce qui sera merge a ete
+teste : des deux branches independantes, rien ne prouvait qu'elles fonctionneraient
+ensemble.
+
+Bloque : rien. Ce controle etait le manque de l'etape precedente ; il n'etait pas
+impossible, seulement non fait.
+
