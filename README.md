@@ -5,10 +5,11 @@ formation KFOKAM48 : un formateur ouvre une session, les étudiants marquent leu
 présence avec un code, puis déposent un exercice qui sera relu et noté par un pair.
 
 - **Cahier des charges** : [`docs/CAHIER_DES_CHARGES.md`](docs/CAHIER_DES_CHARGES.md)
-  (11 EF, 16 RG, ENF1‑ENF4, B1‑B6, F1‑F3)
+  (11 EF, 18 RG, ENF1‑ENF4, B1‑B6, F1‑F3)
 - **Contrat d'API** : [`api/contrat.yaml`](api/contrat.yaml)
 - **Diagrammes** : [`docs/diagrammes/`](docs/diagrammes/)
 - **Journal de bord** : [`docs/JOURNAL.md`](docs/JOURNAL.md)
+- **Journal des versions** : [`CHANGELOG.md`](CHANGELOG.md)
 
 ## Stack
 
@@ -20,6 +21,36 @@ présence avec un code, puis déposent un exercice qui sera relu et noté par un
 | Frontend | React 19 + TypeScript + Vite | F1 |
 | Couche API front | `fetch` encapsulé (client + modules par ressource) | F3 |
 | Déploiement | Docker + Docker Compose | ENF4 |
+
+## Installation
+
+### Prérequis
+
+| Outil | Version | Pourquoi |
+|---|---|---|
+| Docker + Compose | récents | chemin le plus court : `docker compose up` |
+| Java | **21** | `backend/pom.xml` impose `release 21` |
+| Node.js | 20 ou plus | build Vite (testé sur Node 24) |
+
+Avec Docker, Java et Node **ne sont pas nécessaires** : les images les embarquent.
+
+### Vérifié depuis un clone vierge
+
+Ces commandes ont été exécutées sur un `git clone` neuf, sans `node_modules` ni
+répertoire de build :
+
+| Commande | Résultat |
+|---|---|
+| `cd backend && ./mvnw.cmd test` | **114 tests, 0 échec** — BUILD SUCCESS |
+| `cd frontend && npm install` | 27 paquets, 0 vulnérabilité |
+| `cd frontend && npm run build` | 30 modules, build OK |
+| `cd frontend && npm run lint` | 0 avertissement, 0 erreur |
+| `docker compose config` | fichier valide (code de sortie 0) |
+
+> ⚠️ `docker compose up` n'a **pas** pu être exécuté bout en boucle sur la machine
+> de développement utilisée : le démon Docker y était arrêté. Seule la validité
+> syntaxique du `docker-compose.yml` a été contrôlée. C'est le seul point de cette
+> installation qui reste à confirmer sur un poste avec Docker démarré.
 
 ## Démarrage avec Docker (recommandé)
 
@@ -37,7 +68,17 @@ docker compose up --build -d
 Arrêt : `docker compose down` (ajouter `-v` pour supprimer le volume `pgdata`).
 
 Le schéma et les données de démonstration sont créés automatiquement au premier
-démarrage (migrations Flyway `V1__schema.sql` puis `V2__demo_data.sql`).
+démarrage, par les migrations Flyway, appliquées dans l'ordre :
+
+| Migration | Rôle |
+|---|---|
+| `V1__schema.sql` | schéma complet (promotions, sessions, présences, exercices, relectures) |
+| `V2__demo_data.sql` | 2 promotions et 4 étudiants de démonstration |
+| `V3__blocage_tentatives.sql` | compteur d'échecs de code (RG3) |
+| `V4__double_relecture.sql` | unicité portée au couple (exercice, relecteur) — deux relecteurs par exercice |
+
+Les migrations ne sont **jamais modifiées après coup** : chaque évolution en ajoute
+une nouvelle, et une base déjà remplie se met à jour sans perte de données.
 
 ## Démarrage en local
 
@@ -65,7 +106,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 113 tests : 112 unitaires/intégration + contexte
+./mvnw.cmd test                  # 114 tests : 113 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -121,7 +162,7 @@ auto-relecture (403 `AUTO_RELECTURE`), relecture déjà rendue (409
 L'identité du relecteur n'apparaît jamais dans la réponse (RG7), et une relecture
 rendue est définitive.
 
-**EF7 — ticket #8** : ~~correction d'une note déjà envoyée~~ **RETIRÉ du périmètre v0.2**
+**EF7 — ticket #8** : ~~correction d'une note déjà envoyée~~ **RETIRÉ du périmètre v1.0**
 (issue #27). Avec deux relecteurs, la correction est ambiguë — laquelle des deux
 notes ? moyenne à recalculer ? provisoire à repasser ? — et ni le client ni le
 contrat ne tranchent. `PUT /api/relectures/{id}` est retiré plutôt que laissé à
@@ -183,9 +224,39 @@ entière : analyse (CDC, diagrammes), migration `V4`, contrat, code et tests, su
 branche et une pull request dédiées — le correctif de concurrence (issue #25) vit
 dans une autre PR.
 
-Conséquence assumée : **EF7 (correction d'une note) sort du périmètre de la v0.2**,
+Conséquence assumée : **EF7 (correction d'une note) sort du périmètre de la v1.0**,
 faute de réponse du client et du contrat sur la façon de corriger l'une des deux
 notes. Détails dans `docs/JOURNAL.md` et dans l'issue #27.
+
+## Backlog restant
+
+Trié par priorité, et avec la raison du rang : ce qui n'a pas été fait n'est pas
+seulement « ce qu'il reste à faire », c'est aussi ce qu'on a délibérément écarté.
+
+### 1. À traiter en premier — bloquant en usage
+
+| Sujet | Pourquoi c'est en tête |
+|---|---|
+| **Relancer une relecture restée sans réponse** | Avec deux relecteurs par exercice, la probabilité qu'un pair ne rende jamais augmente. Aujourd'hui la note reste provisoire et l'exercice reste en attente **indéfiniment** : rien ne le débloque. C'est le manque le plus visible de la v1.0, et il est directement issu du changement de besoin. Décision à prendre : délai d'expiration, relance automatique, ou alerte au formateur. |
+
+### 2. Manques fonctionnels, non bloquants
+
+| Sujet | Portée |
+|---|---|
+| **EF7 — correction d'une note** | Reportée, pas abandonnée. Reprise possible une fois la règle de correction tranchée avec deux relecteurs (laquelle ? moyenne ? provisoire ?). |
+| **Authentification et autorisation** | Le projet n'a **ni authentification ni autorisation** : n'importe qui peut appeler les endpoints, consulter la note d'un autre, marquer une présence à la place d'un étudiant. Les règles RG4 et RG7 sont respectées côté *schéma de réponse*, pas côté *appelant*. |
+| **Gestion des étudiants et promotions** | Hors périmètre assumé (RG16) : promotions et étudiants sont des données de démonstration, sans interface d'administration. Toute vraie utilisation en demande une. |
+| **Revoir la note après clôture** | L'exercice fige sa note à la clôture (RG14). C'est le comportement voulu, mais il n'a pas été validé avec le formateur. |
+
+### 3. Qualité et dette technique
+
+| Sujet | Constat |
+|---|---|
+| **Tests du frontend** | Le frontend n'a aucun test automatisé : seule la compilation TypeScript et le lint sont vérifiés. Les écrans n'ont pas été testés dans un navigateur. |
+| **Pas de `docker compose up` vérifié** | Le démon Docker était arrêté sur la machine de développement ; seule la validité syntaxique du `docker-compose.yml` a été contrôlée. |
+| **Une requête SQL dépend d'un nom d'index H2** | `V4__double_relecture.sql` supprime `"uk_relecture_exercice_INDEX_5"`, nom généré par H2 à partir de V1. C'est stable tant que V1 ne change pas, mais c'est un couplage à surveiller. |
+| **Notes décimales ignorées** | La moyenne peut être demi-entière (`13.5`). L'affichage est prévu pour, mais la question « une note provisoire compte-t-elle dans la moyenne de l'étudiant ? » mérite d'être confirmée par le formateur. |
+| **Concurrence : portée du test** | Un seul scénario est couvert (deux marquages simultanés). Trois marquages simultanés, ou un dépôt pendant un marquage, ne le sont pas. |
 
 ## Format des erreurs
 
