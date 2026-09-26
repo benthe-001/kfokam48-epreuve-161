@@ -6,14 +6,17 @@ export interface ExerciceDepose {
   statut: string
 }
 
-/** EF8 / RG7 : détail de l'exercice vu par l'étudiant. L'identité du relecteur n'est jamais renvoyée. */
+/** EF8 : détail de l'exercice vu par l'étudiant. RG7 : jamais l'identité du relecteur. */
 export interface ExerciceDetail {
   id: number
   sessionId: number
   etudiantId: number
   lien: string
   statut: string
+  /** RG17 : moyenne des deux relectures rendues ; null si aucune ne l'a été. */
   note?: number | null
+  /** RG18 : true quand un seul relecteur a rendu — la note est provisoire. */
+  noteProvisoire: boolean
   commentaire?: string | null
 }
 

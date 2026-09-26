@@ -505,3 +505,43 @@ calculé à chaque appel, sans mise en cache : suffisant ici, à revoir si le
 nombre de sessions devenait important.
 
 
+## Étape 16 — Ticket #7 (suite) : deux relecteurs par exercice, implémentation (issue #27)
+
+Fait : le service d'assignation tire désormais **deux relecteurs distincts** par
+exercice, la note affichée est la **moyenne des deux rendues** (RG17), elle est marquée
+**provisoire** tant qu'un seul a rendu (RG18), et l'exercice n'atteint le statut `NOTE`
+que lorsque les deux relectures sont rendues. EF7 est retiré (service, contrôleur, DTO,
+frontend, tests), conformément au périmètre sacrifié. 113 tests verts, frontend compilé
+et linté.
+
+Bloqué : trois choses que le changement a révélées.
+
+D'abord, l'assignation ne pouvait plus cibler « les exercices `DEPOSE` » : avec deux
+relecteurs, un exercice peut déjà en avoir un — si un seul autre étudiant était présent
+au dépôt — et il faut alors lui trouver le second. Le lot visé est donc « tout exercice
+non noté », et l'on compte ce qu'il a déjà avant de compléter.
+
+Ensuite, le tableau. Sa moyenne portait sur les notes rendues, sans distinction. Avec
+deux relecteurs, un exercice dont un seul a rendu verrait sa note *provisoire* peser
+dans une moyenne *définitive* : le tableau oscillerait jusqu'à la seconde réponse. La
+requête porte donc désormais sur les seuls exercices dont les **deux** relectures sont
+rendues (sous-requête corrélée). C'est un choix, pas une évidence : il privilégie la
+stabilité de la moyenne sur sa fraîcheur.
+
+Enfin, une décision de conception sur les commentaires. Chaque pair écrit le sien, et
+RG7 interdit d'exposer son identité : impossible de dire « le commentaire de A » de
+« celui de B ». Les commentaires rendus sont donc **concaténés** et présentés comme un
+retour global. C'est le prix de l'anonymat, et il aurait été évité par un champ
+`commentaires: [string]` — changement de contrat que je n'ai pas fait sans arbitrage.
+
+IA : m'a aidé sur le retrait d'EF7. Retirer une fonctionnalité livrée est plus
+difficile que de la laisser : l'endpoint et ses tests fonctionnaient. Mais avec deux
+relecteurs, « corriger » n'a pas de sens défini, et un endpoint qui ne sait pas ce qu'il
+doit faire est pire qu'un endpoint absent. J'ai préféré rendre la perte visible.
+
+Limite : si un seul des deux relecteurs ne rend jamais, la note reste provisoire et
+l'exercice reste en attente indéfiniment — aucun mécanisme de relance n'est prévu, le
+contrat n'en décrivant aucun. C'est écrit dans la section 7 du cahier des charges
+comme un hors-périmètre assumé, et c'est le point à trancher en premier avec le client.
+
+

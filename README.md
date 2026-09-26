@@ -65,7 +65,7 @@ La connexion PostgreSQL se règle par variables d'environnement
 
 ```bash
 cd backend
-./mvnw.cmd test                  # 117 tests : 116 unitaires/intégration + contexte
+./mvnw.cmd test                  # 113 tests : 112 unitaires/intégration + contexte
 
 cd frontend
 npm run build                    # tsc -b && vite build
@@ -83,7 +83,7 @@ aucun schéma n'est créé par Hibernate (`ddl-auto=validate`).
 | #1 | EF1 — le formateur ouvre une session et obtient un code | `POST /api/sessions` | ✅ |
 | #2 | EF2 — l'étudiant marque sa présence avec un code | `POST /api/presences` | ✅ |
 
-**EF1** (RG1, RG17) : la session créée expire 15 minutes après son ouverture et
+**EF1** (RG1, B3) : la session créée expire 15 minutes après son ouverture et
 porte un code unique de 6 caractères.
 
 **EF2** (RG1, RG2, RG13, RG18) : le marquage accepte un code connu et non expiré,
@@ -103,18 +103,17 @@ déjà effectué par le même étudiant sur cette session (409
 `EXERCICE_DEJA_DEPOSE`).
 
 **EF5 — ticket #6** (RG4, RG5, RG6) : à chaque dépôt d'exercice **et** à chaque
-nouvelle présence enregistrée, un service dédié tente d'assigner un relecteur
-tiré au sort parmi les présents. L'auteur est exclu des candidats (RG4), un
-exercice n'a qu'un seul relecteur (RG5), et si aucun autre étudiant n'est
-présent l'exercice reste `DEPOSE` — l'assignation est retentée à la présence
-suivante (RG6).
-
+nouvelle présence enregistrée, un service dédié assigne **deux relecteurs distincts**
+tirés au sort parmi les présents. L'auteur est exclu des candidats (RG4) ; il ne
+peut y en avoir plus de deux par exercice ; et si l'amphi est trop vide pour deux
+candidats, l'exercice reste `EN_ATTENTE_RELECTURE` — un nouvel arrivant le complète
+(RG6).
 **EF4 — ticket #5** (RG12) : `PUT /api/exercices/{id}` remplace le lien de l'exercice.
 Accepté tant qu'aucun relecteur n'est assigné ; refusé (409
 `RELECTEUR_DEJA_ASSIGNE`) dès l'assignation, même si la relecture n'a pas encore
 été rendue. La colonne `modifie_at` est mise à jour.
 
-**EF6 — ticket #7** (RG5, RG8) : `POST /api/relectures/{id}` enregistre la note
+**EF6 — ticket #7** (RG5, RG8, RG17) : `POST /api/relectures/{id}` enregistre la note
 (entière, de 0 à 20) et le commentaire du relecteur, et fait passer l'exercice au
 statut `NOTE`. Refus : note hors bornes ou non entière (400 `NOTE_INVALIDE`),
 auto-relecture (403 `AUTO_RELECTURE`), relecture déjà rendue (409
@@ -122,16 +121,17 @@ auto-relecture (403 `AUTO_RELECTURE`), relecture déjà rendue (409
 L'identité du relecteur n'apparaît jamais dans la réponse (RG7), et une relecture
 rendue est définitive.
 
-**EF7 — ticket #8** (RG8, RG9) : `PUT /api/relectures/{id}` corrige la note et le
-commentaire d'une relecture déjà rendue. La correction est acceptée tant que la session
-n'est pas clôturée ; après clôture par le formateur, elle est refusée (409
-`SESSION_CLOTUREE`) et la note reste figée. La date de premier rendu n'est pas modifiée.
-
-**EF8 — ticket #9** (RG7) : `GET /api/exercices/{id}` renvoie le détail de
-l'exercice avec la note et le commentaire dès qu'ils sont rendus, sinon à `null`.
-L'identité du relecteur n'apparaît nulle part dans la réponse : le DTO est un
-`record` rempli champ par champ, et un test vérifie l'absence de tout champ
-mentionnant le relecteur dans le corps JSON renvoyé.
+**EF7 — ticket #8** : ~~correction d'une note déjà envoyée~~ **RETIRÉ du périmètre v0.2**
+(issue #27). Avec deux relecteurs, la correction est ambiguë — laquelle des deux
+notes ? moyenne à recalculer ? provisoire à repasser ? — et ni le client ni le
+contrat ne tranchent. `PUT /api/relectures/{id}` est retiré plutôt que laissé à
+moitié défini.
+**EF8 — ticket #9** (RG7, RG17, RG18) : `GET /api/exercices/{id}` renvoie le
+détail de l'exercice. RG17 : la note est la **moyenne des deux** relectures rendues.
+RG18 : si un seul a rendu, la note est affichée mais marquée `noteProvisoire` et
+l'exercice reste en attente. RG7 : l'identité du relecteur n'apparaît nulle part
+dans la réponse — le DTO est un `record` rempli champ par champ, et un test vérifie
+l'absence de tout champ le mentionnant dans le corps JSON renvoyé.
 
 **EF9 — ticket #10** (RG11, RG14, RG10) : `POST /api/sessions/{id}/cloture` clôt
 explicitement la session. La clôture est un acte volontaire du formateur,
@@ -151,7 +151,7 @@ pas être ajouté deux fois (409 `DEJA_PRESENT`), et un identifiant inconnu renv
 404. Comme tout marquage de présence, l'ajout manuel déclenche une nouvelle
 tentative d'assignation d'un relecteur (RG6).
 
-**EF11 — ticket #12** (RG10, RG15) : `GET /api/tableau?promotionId=` renvoie une
+**EF11 — ticket #12** (RG10, RG15, RG17) : `GET /api/tableau?promotionId=` renvoie une
 ligne par étudiant de la promotion : présences, exercices déposés, moyenne et
 relectures encore à rendre. RG15 : la moyenne ne porte que sur les exercices
 notés, toutes sessions de la promotion confondues, et vaut `null` — jamais `0` —
@@ -173,6 +173,19 @@ consultation affiche « Pas encore notée » tant que la relecture n'est pas ren
 
 Backlog terminé : les onze fonctionnalités EF1 à EF11 du cahier des charges sont
 implémentées, testées et documentées.
+
+## Changement de besoin (issue #27)
+
+Après test de la v0.1, le client a demandé que **chaque exercice soit relu par deux
+pairs** et non un seul, la note retenue étant la moyenne des deux, provisoire tant
+qu'un seul a rendu. Cela **contredit Q6** et a été traité comme un sujet à part
+entière : analyse (CDC, diagrammes), migration `V4`, contrat, code et tests, sur une
+branche et une pull request dédiées — le correctif de concurrence (issue #25) vit
+dans une autre PR.
+
+Conséquence assumée : **EF7 (correction d'une note) sort du périmètre de la v0.2**,
+faute de réponse du client et du contrat sur la façon de corriger l'une des deux
+notes. Détails dans `docs/JOURNAL.md` et dans l'issue #27.
 
 ## Format des erreurs
 

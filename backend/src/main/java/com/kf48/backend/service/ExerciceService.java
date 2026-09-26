@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class ExerciceService {
 
@@ -109,7 +111,11 @@ public class ExerciceService {
         // RG10 : la lecture reste possible après la clôture de la session. C'est
         // indispensable — sinon un étudiant ne pourrait plus consulter la note qu'il
         // vient de recevoir, et les exercices « en attente » deviendraient invisibles.
-        Relecture relecture = relectureRepository.findByExerciceId(exerciceId).orElse(null);
-        return ExerciceDetailResponse.depuis(exercice, relecture);
+        // RG5 révisée : l'exercice peut porter deux relectures, toutes deux rendues ou
+        // une seule. Le DTO en tire la moyenne des notes rendues (RG17) et le
+        // caractère provisoire (RG18). L'identité des relecteurs n'est pas lue.
+        List<Relecture> relectures = relectureRepository
+                .findByExerciceIdIn(List.of(exerciceId));
+        return ExerciceDetailResponse.depuis(exercice, relectures);
     }
 }
