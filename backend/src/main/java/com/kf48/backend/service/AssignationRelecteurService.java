@@ -10,19 +10,28 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * RG4 : un étudiant ne relit jamais son propre exercice.
- * RG5 : un exercice a un seul relecteur.
- * RG6 : relecteur tiré au sort parmi les présents ; si aucun n'est disponible,
- *       l'exercice reste DEPOSE et l'assignation est retentée à chaque nouvelle présence.
+ * RG5 (révisée, issue #27) : un exercice est relu par DEUX relecteurs distincts.
+ * RG6 : relecteurs tirés au sort parmi les présents ; s'il n'y en a pas assez,
+ *       l'exercice reste en attente et l'assignation est retentée à chaque nouvelle
+ *       présence enregistrée sur la session.
  *
  * Appelé après chaque dépôt d'exercice ET après chaque nouvelle présence sur la session,
  * car l'un ou l'autre peut faire apparaître un candidat qui n'existait pas avant.
  */
 @Service
 public class AssignationRelecteurService {
+
+    /** RG5 révisée (issue #27) : nombre de relecteurs requis par exercice. */
+    public static final int RELECTEURS_REQUIS = 2;
 
     private final ExerciceRepository exerciceRepository;
     private final PresenceRepository presenceRepository;
@@ -41,25 +50,28 @@ public class AssignationRelecteurService {
     }
 
     /**
-     * Tente d'assigner un relecteur à chaque exercice encore DEPOSE de la session.
-     * Idempotent : un exercice déjà assigné n'est plus retourné par la requête
-     * (son statut n'est plus DEPOSE), donc un second appel ne crée pas de doublon.
+     * Complete l'assignation de chaque exercice de la session qui n'a pas encore
+     * ses deux relecteurs (RG5 revisee).
      *
-     * Issue #25 : la session est d'abord verrouillée en écriture. Sans ce verrou,
-     * deux transactions concurrentes lisent le même exercice DEPOSE et insèrent
-     * toutes deux une relecture ; la seconde viole la contrainte unique RG5 et son
-     * appelant voit sa transaction entière annulée — donc une présence perdue.
-     * Avec le verrou, la seconde transaction attend, relit l'exercice après le commit
-     * de la première, constate qu'il n'est plus DEPOSE et ne fait rien.
-     * Le verrou est sur la session, pas sur l'exercice : c'est le périmètre minimal
-     * qui sérialise toutes les assignations de cette session, quel que soit l'appelant.
+     * Issue #25 : la session est d'abord verrouillee en ecriture. Sans ce verrou,
+     * deux transactions concurrentes lisent le meme exercice et inserent chacune
+     * deux relectures ; la seconde viole la contrainte unique du couple
+     * (exercice, relecteur) et voit sa transaction entiere annulee, donc une
+     * presence perdue. Avec le verrou, la seconde attend, relit apres le commit de
+     * la premiere, constate que l'exercice a deja ses deux relecteurs et ne fait
+     * rien. Le verrou est sur la session, pas sur l'exercice : c'est le perimetre
+     * minimal qui serialise toutes les assignations de cette session, quel que soit
+     * l'appelant (depot d'exercice ou marquage de presence).
      */
     @Transactional
     public void tenterAssignerPourSession(Long sessionId) {
         sessionRepository.findByIdPourMiseAJour(sessionId)
                 .orElse(null); // verrou pessimiste : bloque jusqu'au commit de la transaction concurrente
 
-        List<Exercice> enAttente = exerciceRepository.findBySessionIdAndStatut(sessionId, Exercice.Statut.DEPOSE);
+        // RG5 révisée : tout exercice non noté, car un exercice déjà partiellement
+        // assigné (un seul relecteur trouvé) doit pouvoir recevoir son second.
+        List<Exercice> enAttente = exerciceRepository.findBySessionIdAndStatutNot(
+                sessionId, Exercice.Statut.NOTE);
         if (enAttente.isEmpty()) {
             return;
         }
@@ -69,20 +81,47 @@ public class AssignationRelecteurService {
             return; // RG6 : personne n'est encore arrivé, on retentera
         }
 
-        for (Exercice exercice : enAttente) {
-            List<Long> candidats = presents.stream()
-                    .filter(id -> !id.equals(exercice.getEtudiantId())) // RG4
-                    .toList();
+        // Un seul chargement pour tous les exercices du lot : sans cela, on
+        // interrogerait la base une fois par exercice.
+        Map<Long, List<Long>> dejaAssignes = new HashMap<>();
+        for (Relecture relecture : relectureRepository.findByExerciceIdIn(
+                enAttente.stream().map(Exercice::getId).toList())) {
+            dejaAssignes.computeIfAbsent(relecture.getExerciceId(), k -> new ArrayList<>())
+                    .add(relecture.getRelecteurId());
+        }
 
-            if (candidats.isEmpty()) {
-                continue; // RG6 : reste DEPOSE, retenté à la prochaine présence
+        for (Exercice exercice : enAttente) {
+            List<Long> dejaChoisis = dejaAssignes.getOrDefault(exercice.getId(), List.of());
+            int manquants = RELECTEURS_REQUIS - dejaChoisis.size();
+            if (manquants <= 0) {
+                continue; // déjà les deux relecteurs
             }
 
-            Long relecteurId = candidats.get(aleatoire.nextInt(candidats.size()));
-            relectureRepository.save(new Relecture(exercice.getId(), relecteurId)); // RG5
-            exercice.marquerEnAttenteRelecture();
-            // Les entités findBySessionIdAndStatut sont managées : le statut est persisté à la fin
-            // de la transaction englobante (dirty checking), sans appel explicite à save().
+            // RG4 : l'auteur n'est jamais candidat. Les relecteurs déjà choisis non
+            // plus : c'est ce qui garantit qu'on tire deux pairs DIFFÉRENTS, et non
+            // deux fois le même.
+            List<Long> candidats = presents.stream()
+                    .filter(id -> !id.equals(exercice.getEtudiantId()))
+                    .filter(id -> !dejaChoisis.contains(id))
+                    .collect(Collectors.toCollection(ArrayList::new));
+
+            if (candidats.isEmpty()) {
+                continue; // RG6 : pas assez de monde, on retentera à la prochaine présence
+            }
+
+            Collections.shuffle(candidats, aleatoire);
+            int aTirer = Math.min(manquants, candidats.size());
+            for (int i = 0; i < aTirer; i++) {
+                relectureRepository.save(new Relecture(exercice.getId(), candidats.get(i)));
+            }
+
+            if (dejaChoisis.isEmpty()) {
+                exercice.marquerEnAttenteRelecture();
+            }
+            // Si l'exercice avait déjà un relecteur, son statut est déjà
+            // EN_ATTENTE_RELECTURE : seul le nombre de relectures change.
+            // Les entités findBySessionIdAndStatutNot sont managées : le statut est
+            // persisté en fin de transaction (dirty checking).
         }
     }
 }

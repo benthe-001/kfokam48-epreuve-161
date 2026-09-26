@@ -52,5 +52,5 @@ classDiagram
     Etudiant "1" --> "*" Presence
     Etudiant "1" --> "*" Exercice : dépose
     Etudiant "1" --> "*" Relecture : relecteur
-    Exercice "1" --> "1" Relecture
+    Exercice "1" --> "2" Relecture : deux relecteurs distincts (RG5 revisee)
 ```

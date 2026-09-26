@@ -244,3 +244,10 @@
 .tableau tbody tr:hover {
   background: var(--accent-bg);
 }
+
+/* RG18 : note provisoire (un seul relecteur a rendu) */
+.note-provisoire {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--accent-border);
+}

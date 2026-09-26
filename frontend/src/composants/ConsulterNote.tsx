@@ -37,8 +37,8 @@ export function ConsulterNote() {
     <section className="onglet-contenu">
       <h1>Ma note et mon commentaire</h1>
       <p className="sous-titre">
-        RG7 : l&apos;identité du relecteur n&apos;est jamais affichée · la note et le commentaire
-        apparaissent dès que la relecture est rendue.
+        RG17 : la note est la moyenne de mes deux relecteurs ·&nbsp;RG18 : si un seul a rendu,
+        la note est provisoire ·&nbsp;RG7 : l&apos;identité du relecteur n&apos;est jamais affichée.
       </p>
 
       <form
@@ -80,8 +80,19 @@ export function ConsulterNote() {
             </div>
             <div>
               <dt>Note</dt>
-              <dd className="note-finale">{noteRecue ? `${detail.note} / 20` : 'Pas encore notée'}</dd>
+              <dd className={noteRecue && detail.noteProvisoire ? 'note-provisoire' : 'note-finale'}>
+                {noteRecue ? `${detail.note} / 20` : 'Pas encore notée'}
+              </dd>
             </div>
+            {noteRecue && detail.noteProvisoire && (
+              <div>
+                <dt>Provisoire</dt>
+                <dd>
+                  Un seul de mes deux relecteurs a rendu. La note sera définitive dès que
+                  l&apos;autre répondra.
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Commentaire</dt>
               <dd>{detail.commentaire ?? 'Aucun commentaire pour le moment.'}</dd>

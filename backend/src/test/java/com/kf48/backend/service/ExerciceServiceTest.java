@@ -24,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -149,23 +151,37 @@ class ExerciceServiceTest {
 
     // ---- EF8 / RG7 : consultation de sa note et de son commentaire ----
 
-    /** Depose un exercice et renvoie son id ; l'etudiant 2 est present pour forcer l'assignation. */
-    private Long deposerAvecRelecteur() {
+    /** Depose un exercice ; les etudiants 2 et 3 sont presents pour les DEUX relecteurs (RG5). */
+    private Long deposerAvecRelecteurs() {
         presenceRepository.save(new Presence(session.getId(), 2L, Presence.Source.ETUDIANT));
+        presenceRepository.save(new Presence(session.getId(), 3L, Presence.Source.ETUDIANT));
         return exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
     }
 
-    @Test
-    void noteEtCommentaireVisiblesDesQuIlsSontRendus() { // EF8
-        Long id = deposerAvecRelecteur();
-        Relecture relecture = relectureRepository.findByExerciceId(id).orElseThrow();
+    /** Les relecteurs de l'exercice, tries par identifiant pour la stabilite. */
+    private List<Relecture> relectures(Long exerciceId) {
+        return relectureRepository.findByExerciceIdIn(List.of(exerciceId)).stream()
+                .sorted(Comparator.comparing(Relecture::getId))
+                .toList();
+    }
+
+    private void rendre(Relecture relecture, int note, String commentaire) {
         relectureService.rendre(relecture.getId(),
-                new RendreRelectureRequest(BigDecimal.valueOf(14), "Bon travail dans l'ensemble."));
+                new RendreRelectureRequest(BigDecimal.valueOf(note), commentaire));
+    }
+
+
+    @Test
+    void laNoteEstLaMoyenneDesDeuxRelecturesRendues() { // EF8, RG17
+        Long id = deposerAvecRelecteurs();
+        List<Relecture> relectures = relectures(id);
+        rendre(relectures.get(0), 14, "Bon travail dans l'ensemble.");
+        rendre(relectures.get(1), 18, "Clair et bien structure.");
 
         ExerciceDetailResponse detail = exerciceService.consulter(id);
 
-        assertThat(detail.note()).isEqualTo(14);
-        assertThat(detail.commentaire()).isEqualTo("Bon travail dans l'ensemble.");
+        assertThat(detail.note()).isEqualTo(16.0); // (14 + 18) / 2
+        assertThat(detail.noteProvisoire()).isFalse();
         assertThat(detail.statut()).isEqualTo("NOTE");
         assertThat(detail.lien()).isEqualTo(LIEN);
         assertThat(detail.etudiantId()).isEqualTo(1L);
@@ -173,13 +189,41 @@ class ExerciceServiceTest {
     }
 
     @Test
+    void uneSeuleRelectureRendueDonneUneNoteProvisoire() { // RG18
+        Long id = deposerAvecRelecteurs();
+        List<Relecture> relectures = relectures(id);
+        rendre(relectures.get(0), 16, "Premier retour.");
+
+        ExerciceDetailResponse detail = exerciceService.consulter(id);
+
+        // La note du seul relecteur qui a rendu, mais marquée provisoire
+        assertThat(detail.note()).isEqualTo(16.0);
+        assertThat(detail.noteProvisoire()).isTrue();
+        assertThat(detail.statut()).isEqualTo("EN_ATTENTE_RELECTURE");
+    }
+
+    @Test
+    void lesCommentairesDesDeuxPairsSontConcatenesSansIdentifierQuiLesEcrit() { // RG7
+        Long id = deposerAvecRelecteurs();
+        List<Relecture> relectures = relectures(id);
+        rendre(relectures.get(0), 14, "Premier retour.");
+        rendre(relectures.get(1), 18, "Second retour.");
+
+        ExerciceDetailResponse detail = exerciceService.consulter(id);
+
+        assertThat(detail.commentaire()).contains("Premier retour.", "Second retour.");
+    }
+
+    @Test
     void noteEtCommentaireRestentNulsAvantLeRendu() { // EF8
-        Long id = deposerAvecRelecteur(); // relecteur assigné, mais rien de rendu
+        Long id = deposerAvecRelecteurs(); // relecteurs assignes, rien de rendu
 
         ExerciceDetailResponse detail = exerciceService.consulter(id);
 
         assertThat(detail.statut()).isEqualTo("EN_ATTENTE_RELECTURE");
         assertThat(detail.note()).isNull();
+        // Sans aucune note, il n'y a rien de provisoire : le drapeau vaut false
+        assertThat(detail.noteProvisoire()).isFalse();
         assertThat(detail.commentaire()).isNull();
     }
 
@@ -191,16 +235,17 @@ class ExerciceServiceTest {
 
         assertThat(detail.statut()).isEqualTo("DEPOSE");
         assertThat(detail.note()).isNull();
+        assertThat(detail.noteProvisoire()).isFalse();
         assertThat(detail.commentaire()).isNull();
     }
 
     @Test
     void laConsultationNeFuitJamaisLIdentiteDuRelecteur() { // RG7
-        Long id = deposerAvecRelecteur();
-        Relecture relecture = relectureRepository.findByExerciceId(id).orElseThrow();
-        relectureService.rendre(relecture.getId(),
-                new RendreRelectureRequest(BigDecimal.valueOf(14), "OK"));
-        assertThat(relecture.getRelecteurId()).isNotNull(); // la donnée existe bien en base
+        Long id = deposerAvecRelecteurs();
+        List<Relecture> relectures = relectures(id);
+        rendre(relectures.get(0), 14, "OK");
+        rendre(relectures.get(1), 18, "OK");
+        assertThat(relectures).allMatch(r -> r.getRelecteurId() != null); // la donnée existe en base
 
         // Aucun champ du DTO ne doit permettre d'identifier le relecteur
         assertThat(Arrays.stream(ExerciceDetailResponse.class.getRecordComponents())

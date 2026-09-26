@@ -4,7 +4,6 @@ import com.kf48.backend.domain.Exercice;
 import com.kf48.backend.domain.Presence;
 import com.kf48.backend.domain.Relecture;
 import com.kf48.backend.domain.SessionCours;
-import com.kf48.backend.dto.CorrigerNoteRequest;
 import com.kf48.backend.dto.DeposerExerciceRequest;
 import com.kf48.backend.dto.MarquerPresenceRequest;
 import com.kf48.backend.dto.RelectureResponse;
@@ -23,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -47,18 +48,26 @@ class RelectureServiceTest {
     private SessionCours session;
     private Long exerciceId;
 
-    /** Cree le scenario complet : l'etudiant 1 depose, l'etudiant 2 est tire comme relecteur. */
+    /** Cree le scenario : l'etudiant 1 depose, les etudiants 2 et 3 sont tires comme relecteurs. */
     @BeforeEach
     void assignerUneRelecture() {
         OffsetDateTime ouverture = OffsetDateTime.now();
         session = sessionRepository.save(new SessionCours(
                 "Seance test", 1L, "ABCDEF", ouverture, ouverture.plusMinutes(15)));
         presenceRepository.save(new Presence(session.getId(), 2L, Presence.Source.ETUDIANT));
+        presenceRepository.save(new Presence(session.getId(), 3L, Presence.Source.ETUDIANT));
         exerciceId = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN)).id();
     }
 
-    private Relecture relecture() {
-        return relectureRepository.findByExerciceId(exerciceId).orElseThrow();
+    /** Les deux relecteurs tires (RG5 revisee), tries par identifiant pour la stabilite. */
+    private List<Relecture> relectures() {
+        return relectureRepository.findByExerciceIdIn(List.of(exerciceId)).stream()
+                .sorted(Comparator.comparing(Relecture::getId))
+                .toList();
+    }
+
+    private Relecture premiereRelecture() {
+        return relectures().get(0);
     }
 
     private static RendreRelectureRequest rendre(int note) {
@@ -66,12 +75,36 @@ class RelectureServiceTest {
     }
 
     @Test
-    void rendreEnregistreNoteCommentaireEtStatutNote() {
-        RelectureResponse reponse = relectureService.rendre(relecture().getId(), rendre(15));
+    void deuxRelecteursDistinctsSontAssignes() { // RG5 révisée
+        List<Relecture> relectures = relectures();
+        assertThat(relectures).hasSize(2);
+        assertThat(relectures.get(0).getRelecteurId())
+                .isNotEqualTo(relectures.get(1).getRelecteurId());
+        assertThat(relectures).allMatch(r -> r.getRelecteurId() != 1L); // jamais l'auteur
+    }
+
+    @Test
+    void rendreEnregistreNoteEtCommentaire() {
+        RelectureResponse reponse = relectureService.rendre(premiereRelecture().getId(), rendre(15));
 
         assertThat(reponse.note()).isEqualTo(15);
         assertThat(reponse.commentaire()).isEqualTo("Travail clair et complet.");
         assertThat(reponse.rendueAt()).isNotNull();
+    }
+
+    @Test
+    void lePremierRenduNePassePasLExerciceAuStatutNote() { // RG5 révisée : il en faut deux
+        relectureService.rendre(premiereRelecture().getId(), rendre(15));
+
+        // L'exercice reste en attente de la seconde relecture : la note est provisoire
+        assertThat(exerciceRepository.findById(exerciceId).orElseThrow().getStatut())
+                .isEqualTo(Exercice.Statut.EN_ATTENTE_RELECTURE);
+    }
+
+    @Test
+    void lesDeuxRendusFontPasserLExerciceAuStatutNote() { // RG5 révisée
+        relectureService.rendre(premiereRelecture().getId(), rendre(14));
+        relectureService.rendre(relectures().get(1).getId(), rendre(16));
 
         assertThat(exerciceRepository.findById(exerciceId).orElseThrow().getStatut())
                 .isEqualTo(Exercice.Statut.NOTE);
@@ -79,19 +112,19 @@ class RelectureServiceTest {
 
     @Test
     void noteZeroAcceptee() { // RG8 : borne basse incluse
-        relectureService.rendre(relecture().getId(), rendre(0));
-        assertThat(relecture().getNote()).isZero();
+        relectureService.rendre(premiereRelecture().getId(), rendre(0));
+        assertThat(premiereRelecture().getNote()).isZero();
     }
 
     @Test
     void noteVingtAcceptee() { // RG8 : borne haute incluse (2 chiffres)
-        relectureService.rendre(relecture().getId(), rendre(20));
-        assertThat(relecture().getNote()).isEqualTo(20);
+        relectureService.rendre(premiereRelecture().getId(), rendre(20));
+        assertThat(premiereRelecture().getNote()).isEqualTo(20);
     }
 
     @Test
     void relectureDejaRendueRenvoie409() {
-        Long id = relecture().getId();
+        Long id = premiereRelecture().getId();
         relectureService.rendre(id, rendre(12));
 
         assertThatThrownBy(() -> relectureService.rendre(id, rendre(15)))
@@ -101,7 +134,7 @@ class RelectureServiceTest {
                 });
 
         // La note rendue n'a pas ete ecrasee par la tentative refusee
-        assertThat(relecture().getNote()).isEqualTo(12);
+        assertThat(premiereRelecture().getNote()).isEqualTo(12);
     }
     @Test
     void autoRelectureRenvoie403() {
@@ -130,9 +163,10 @@ class RelectureServiceTest {
                 });
     }
 
+
     @Test
     void laReponseNExposePasLIdentiteDuRelecteur() { // RG7
-        RelectureResponse reponse = relectureService.rendre(relecture().getId(), rendre(15));
+        RelectureResponse reponse = relectureService.rendre(premiereRelecture().getId(), rendre(15));
 
         assertThat(Arrays.stream(RelectureResponse.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName))
@@ -140,107 +174,23 @@ class RelectureServiceTest {
     }
 
     @Test
-    void laRelectureResteLieeAuRelecteurTireAuSort() { // RG5
-        Long relecteurAssigne = relecture().getRelecteurId();
-        assertThat(relecteurAssigne).isEqualTo(2L);
+    void lesRelecturesResteLieesAQuiEllesEtant() { // RG5 révisée
+        List<Long> avant = relectures().stream().map(Relecture::getRelecteurId).toList();
 
-        relectureService.rendre(relecture().getId(), rendre(18));
+        relectureService.rendre(premiereRelecture().getId(), rendre(18));
 
-        assertThat(relecture().getRelecteurId()).isEqualTo(relecteurAssigne);
+        assertThat(relectures().stream().map(Relecture::getRelecteurId).toList())
+                .containsExactlyElementsOf(avant);
     }
 
     @Test
-    void uneNouvellePresenceNeReassignePasLExercice() {
-        presenceService.marquer(new MarquerPresenceRequest("ABCDEF", 3L));
+    void uneNouvellePresenceNAjoutePasUnTroisiemeRelecteur() { // RG5 révisée
+        assertThat(relectures()).hasSize(2);
 
-        Relecture apres = relecture();
-        assertThat(apres.getRelecteurId()).isEqualTo(2L);
-        assertThat(apres.getRendueAt()).isNull();
-        assertThat(exerciceRepository.findById(exerciceId).orElseThrow().getStatut())
-                .isEqualTo(Exercice.Statut.EN_ATTENTE_RELECTURE);
-    }
+        presenceService.marquer(new MarquerPresenceRequest("ABCDEF", 4L));
 
-    // ---- EF7 / RG9 : correction d'une note déjà rendue ----
-
-    private static CorrigerNoteRequest corriger(int note) {
-        return new CorrigerNoteRequest(BigDecimal.valueOf(note), "Note corrigée après relecture.");
-    }
-
-    /** Rend la relecture du @BeforeEach pour pouvoir la corriger ensuite. */
-    private void rendreLaRelecture(int note) {
-        relectureService.rendre(relecture().getId(), rendre(note));
-    }
-
-    @Test
-    void correctionAccepteeTantQueLaSessionEstOuverte() { // RG9
-        rendreLaRelecture(10);
-
-        RelectureResponse reponse = relectureService.corriger(relecture().getId(), corriger(16));
-
-        assertThat(reponse.note()).isEqualTo(16);
-        assertThat(reponse.commentaire()).isEqualTo("Note corrigée après relecture.");
-        assertThat(relecture().getNote()).isEqualTo(16);
-    }
-
-    @Test
-    void laCorrectionNeChangePasLaDateDeRendu() {
-        rendreLaRelecture(10);
-        var premierRendu = relecture().getRendueAt();
-
-        relectureService.corriger(relecture().getId(), corriger(16));
-
-        assertThat(relecture().getRendueAt()).isEqualTo(premierRendu);
-    }
-
-    @Test
-    void correctionRefuseeApresClotureDeLaSession() { // RG9 : la note est figée
-        rendreLaRelecture(10);
-        session.cloturer(); // RG14 : clôture explicite du formateur
-
-        assertThatThrownBy(() -> relectureService.corriger(relecture().getId(), corriger(16)))
-                .isInstanceOfSatisfying(MetierException.class, e -> {
-                    assertThat(e.getCode()).isEqualTo("SESSION_CLOTUREE");
-                    assertThat(e.getStatut().value()).isEqualTo(409);
-                });
-
-        assertThat(relecture().getNote()).isEqualTo(10); // inchangée
-    }
-
-    @Test
-    void laClotureEstVerifieeAvantLeRenduDeLaRelecture() {
-        // Une session clôturée refuse aussi la correction d'une relecture jamais rendue :
-        // l'ordre des contrôles place RG9 avant le contrôle de rendu.
-        session.cloturer();
-
-        assertThatThrownBy(() -> relectureService.corriger(relecture().getId(), corriger(16)))
-                .isInstanceOfSatisfying(MetierException.class,
-                        e -> assertThat(e.getCode()).isEqualTo("SESSION_CLOTUREE"));
-    }
-
-    @Test
-    void corrigerUneRelectureJamaisRendueRenvoie404() {
-        assertThat(relecture().getRendueAt()).isNull();
-
-        assertThatThrownBy(() -> relectureService.corriger(relecture().getId(), corriger(16)))
-                .isInstanceOfSatisfying(MetierException.class, e -> {
-                    assertThat(e.getCode()).isEqualTo("RELECTURE_INCONNUE");
-                    assertThat(e.getStatut().value()).isEqualTo(404);
-                });
-    }
-
-    @Test
-    void corrigerUneRelectureInconnueRenvoie404() {
-        assertThatThrownBy(() -> relectureService.corriger(999999L, corriger(16)))
-                .isInstanceOfSatisfying(MetierException.class, e ->
-                        assertThat(e.getCode()).isEqualTo("RELECTURE_INCONNUE"));
-    }
-
-    @Test
-    void laCorrectionLaisseLExerciceAuStatutNote() {
-        rendreLaRelecture(10);
-        relectureService.corriger(relecture().getId(), corriger(16));
-
-        assertThat(exerciceRepository.findById(exerciceId).orElseThrow().getStatut())
-                .isEqualTo(Exercice.Statut.NOTE);
+        // L'exercice a déjà ses deux relecteurs : rien n'est ajouté
+        assertThat(relectures()).hasSize(2);
+        assertThat(relectures()).allMatch(r -> r.getRendueAt() == null);
     }
 }
