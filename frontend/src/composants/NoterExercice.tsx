@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { RelectureRendue } from '../api/relectures'
-import { corrigerRelecture, rendreRelecture } from '../api/relectures'
+import { rendreRelecture } from '../api/relectures'
 import { ErreurApi } from '../api/client'
 
 const NOTE_MIN = 0
@@ -35,21 +35,6 @@ export function NoterExercice() {
     setErreur(null)
     try {
       setRelecture(await rendreRelecture(relectureId, note, commentaire.trim()))
-    } catch (e) {
-      setErreur(message(e))
-    } finally {
-      setEnCours(false)
-    }
-  }
-
-  /** EF7 / RG9 : la correction n'est possible qu'une fois la relecture rendue, et
-   *  seulement tant que la session n'est pas clôturée (refus 409 SESSION_CLOTUREE). */
-  async function corriger() {
-    if (enCours || formulaireInvalide) return
-    setEnCours(true)
-    setErreur(null)
-    try {
-      setRelecture(await corrigerRelecture(relectureId, note, commentaire.trim()))
     } catch (e) {
       setErreur(message(e))
     } finally {
@@ -147,20 +132,6 @@ export function NoterExercice() {
             L&apos;exercice est désormais au statut NOTE. La relecture peut encore être corrigée
             tant que le formateur n&apos;a pas clôturé la session.
           </p>
-
-          <h3>Corriger ma note</h3>
-          <p className="note">
-            EF7 / RG9 : la correction est acceptée tant que la session n&apos;est pas clôturée. Après
-            clôture par le formateur, la note est figée définitivement (409 SESSION_CLOTUREE).
-          </p>
-          <button
-            type="button"
-            className="action secondaire"
-            onClick={() => void corriger()}
-            disabled={enCours || formulaireInvalide}
-          >
-            {enCours ? 'Correction…' : 'Corriger ma note'}
-          </button>
         </section>
       )}
     </section>

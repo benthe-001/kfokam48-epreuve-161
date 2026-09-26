@@ -109,27 +109,41 @@ class TableauServiceTest {
         assertThat(ligne(2L).exercicesDeposes()).isZero();
     }
 
-    @Test
-    void laMoyenneIgnoreLesExercicesNonNotes() { // RG15 : exclusion explicite
-        Relecture notee = deposerAvecRelecture(sessionA, 1L, 2L);
-        notee.rendre(10, "OK");
-        deposerAvecRelecture(sessionB, 1L, 2L); // assignée mais pas rendue : ne compte pas
+    /** Depose un exercice et y assigne DEUX relecteurs distincts (RG5 revisee). */
+    private List<Relecture> deposerAvecDeuxRelecteurs(Long sessionId, Long auteurId) {
+        Long exerciceId = exerciceRepository.save(new Exercice(sessionId, auteurId, LIEN)).getId();
+        return List.of(
+                relectureRepository.save(new Relecture(exerciceId, 2L)),
+                relectureRepository.save(new Relecture(exerciceId, 3L)));
+    }
 
-        // 10 et non 5 : la relecture non rendue est exclue de la moyenne
+    @Test
+    void laMoyenneIgnoreUnExerciceDontUnSeulRelecteurARendu() { // RG15 + RG18
+        List<Relecture> premier = deposerAvecDeuxRelecteurs(sessionA, 1L);
+        premier.get(0).rendre(10, "OK");
+        premier.get(1).rendre(10, "OK");
+
+        List<Relecture> provisoire = deposerAvecDeuxRelecteurs(sessionB, 1L);
+        provisoire.get(0).rendre(20, "Brillant"); // un seul rendu sur deux
+
+        // 10 et non 15 : un exercice provisoire ne pese pas dans la moyenne definitive
         assertThat(ligne(1L).moyenne()).isEqualTo(10.0);
     }
 
     @Test
     void laMoyenneMoyenneLesExercicesNotes() { // RG15 : plusieurs sessions confondues
-        Relecture premiere = deposerAvecRelecture(sessionA, 1L, 2L);
-        premiere.rendre(10, "OK");
-        Relecture seconde = deposerAvecRelecture(sessionB, 1L, 2L);
-        seconde.rendre(16, "Très bien");
+        List<Relecture> notes = deposerAvecDeuxRelecteurs(sessionA, 1L);
+        notes.get(0).rendre(10, "Correct");
+        notes.get(1).rendre(16, "Tres bien");
 
-        assertThat(ligne(1L).moyenne()).isEqualTo(13.0);
+        List<Relecture> autres = deposerAvecDeuxRelecteurs(sessionB, 1L);
+        autres.get(0).rendre(12, "Correct");
+        autres.get(1).rendre(16, "Tres bien");
+
+        // (10+16)/2 = 13 pour le premier, (12+16)/2 = 14 pour le second
+        assertThat(ligne(1L).moyenne()).isEqualTo(13.5);
     }
 
-    @Test
     void laMoyenneEstNulleSansExerciceNote() { // RG15 : null et non 0
         deposerAvecRelecture(sessionA, 1L, 2L); // assignée, pas rendue
 

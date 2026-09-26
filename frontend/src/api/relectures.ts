@@ -20,14 +20,3 @@ export function rendreRelecture(
   })
 }
 
-/** EF7 / RG9 : corrige une note déjà rendue ; refusé après clôture de la session. */
-export function corrigerRelecture(
-  relectureId: number,
-  note: number,
-  commentaire: string,
-): Promise<RelectureRendue> {
-  return appelApi<RelectureRendue>(`/api/relectures/${relectureId}`, {
-    method: 'PUT',
-    body: JSON.stringify({ note, commentaire }),
-  })
-}

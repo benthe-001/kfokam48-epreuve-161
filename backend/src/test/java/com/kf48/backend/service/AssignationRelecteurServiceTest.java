@@ -24,9 +24,13 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * RG4 / RG5 / RG6 : l'assignation automatique d'un relecteur.
- * Le point delicat est le double declencheur (depot ET presence) : chaque cas
- * verifie donc par quel chemin l'exercice a ete assigne.
+ * RG4 / RG5 (révisée) / RG6 : l'assignation automatique de DEUX relecteurs.
+ *
+ * Le point délicat est le double declencheur (dépôt ET présence) : chaque cas
+ * vérifie donc par quel chemin l'exercice a été assigné. Depuis le changement de
+ * besoin (issue #27), un exercice ne reçoit plus UN relecteur mais DEUX distincts,
+ * ce qui change trois choses : le nombre de relectures attendues, la possibilité
+ * qu'un exercice soit PARTIELLEMENT assigné, et le besoin de compléter ensuite.
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -52,7 +56,7 @@ class AssignationRelecteurServiceTest {
     }
 
     /** Enregistre directement une presence, sans passer par le code de session. */
-    private void marquerPresent(Long etudiantId) {
+    private void marcarPresent(Long etudiantId) {
         presenceRepository.save(new Presence(session.getId(), etudiantId, Presence.Source.ETUDIANT));
     }
 
@@ -62,93 +66,122 @@ class AssignationRelecteurServiceTest {
         return exerciceRepository.findById(reponse.id()).orElseThrow();
     }
 
+    /** Relectures d'un exercice : il y en a deux dès que c'est complet. */
+    private List<Relecture> relectures(Long exerciceId) {
+        return relectureRepository.findByExerciceIdIn(List.of(exerciceId));
+    }
+
     @Test
     void aucunPresentLExerciceResteDepose() { // RG6 : pas de relecteur disponible
         Exercice exercice = depoter(1L);
 
         assertThat(exercice.getStatut()).isEqualTo(Exercice.Statut.DEPOSE);
-        assertThat(relectureRepository.findByExerciceId(exercice.getId())).isEmpty();
+        assertThat(relectures(exercice.getId())).isEmpty();
     }
 
     @Test
-    void unAutrePresentAssigneUnRelecteurAuDepot() { // RG6, declencheur 1 : le depot
-        marquerPresent(2L);
+    void deuxRelecteursSontAssignesAuDepotQuandDeuxAutresSontPresents() {
+        marcarPresent(2L);
+        marcarPresent(3L);
 
         ExerciceResponse reponse = exerciceService.deposer(
                 new DeposerExerciceRequest(session.getId(), 1L, LIEN));
 
-        // L'assignation est tentee avant le retour : la reponse reflete l'etat reel
+        // L'assignation est tentée avant le retour : la réponse reflète l'état réel
         assertThat(reponse.statut()).isEqualTo("EN_ATTENTE_RELECTURE");
-        Relecture relecture = relectureRepository.findByExerciceId(reponse.id()).orElseThrow();
-        assertThat(relecture.getRelecteurId()).isEqualTo(2L);
-        assertThat(relecture.getRendueAt()).isNull(); // assignee, pas encore rendue
+        assertThat(relectures(reponse.id()))
+                .extracting(Relecture::getRelecteurId)
+                .containsExactlyInAnyOrder(2L, 3L);
+        assertThat(relectures(reponse.id()))
+                .allMatch(r -> r.getRendueAt() == null); // assignés, pas encore rendus
     }
 
     @Test
     void leRelecteurNEstJamaisLAuteur() { // RG4 : l'auto-relecture est impossible
-        marquerPresent(1L); // seul l'auteur est present
+        marcarPresent(1L); // seul l'auteur est présent
 
         ExerciceResponse reponse = exerciceService.deposer(
                 new DeposerExerciceRequest(session.getId(), 1L, LIEN));
 
         assertThat(reponse.statut()).isEqualTo("DEPOSE");
-        assertThat(relectureRepository.findByExerciceId(reponse.id())).isEmpty();
+        assertThat(relectures(reponse.id())).isEmpty();
     }
 
     @Test
-    void relecteurTireParmisTousLesPresents() { // RG6 : tirage au sort, pas le premier
-        marquerPresent(2L);
-        marquerPresent(3L);
-        marquerPresent(4L);
+    void deuxRelecteursDistinctsSontTiresParmisLesPresents() { // RG5 révisée
+        marcarPresent(2L);
+        marcarPresent(3L);
+        marcarPresent(4L);
 
         ExerciceResponse reponse = exerciceService.deposer(
                 new DeposerExerciceRequest(session.getId(), 1L, LIEN));
 
-        Relecture relecture = relectureRepository.findByExerciceId(reponse.id()).orElseThrow();
-        assertThat(relecture.getRelecteurId()).isIn(2L, 3L, 4L);
+        List<Relecture> tirees = relectures(reponse.id());
+        assertThat(tirees).hasSize(2);
+        // Deux pairs DIFFÉRENTS, tous deux parmi les présents, jamais l'auteur (1)
+        assertThat(tirees.get(0).getRelecteurId()).isNotEqualTo(tirees.get(1).getRelecteurId());
+        assertThat(tirees).allMatch(r -> r.getRelecteurId() != 1L
+                && (r.getRelecteurId() == 2L || r.getRelecteurId() == 3L || r.getRelecteurId() == 4L));
     }
 
     @Test
-    void uneNouvellePresenceRetenteLesExercicesEnAttente() { // RG6, declencheur 2 : la presence
-        Exercice exercice = depoter(1L); // personne n'est present : reste DEPOSE
-        assertThat(exercice.getStatut()).isEqualTo(Exercice.Statut.DEPOSE);
+    void uneSeulePresenceNeSuffitPasACompleterLesDeuxRelecteurs() { // RG5 révisée + RG6
+        marcarPresent(2L); // un seul autre étudiant présent
 
-        presenceService.marquer(new MarquerPresenceRequest("ABCDEF", 2L));
+        ExerciceResponse reponse = exerciceService.deposer(
+                new DeposerExerciceRequest(session.getId(), 1L, LIEN));
 
-        // L'arrivee du deuxieme etudiant a debloque l'exercice deja depose
-        Relecture relecture = relectureRepository.findByExerciceId(exercice.getId()).orElseThrow();
-        assertThat(relecture.getRelecteurId()).isEqualTo(2L);
-        assertThat(exerciceRepository.findById(exercice.getId()).orElseThrow().getStatut())
+        // Un seul relecteur possible : l'exercice reste en attente du second (RG6)
+        assertThat(relectures(reponse.id()))
+                .extracting(Relecture::getRelecteurId)
+                .containsExactly(2L);
+        assertThat(exerciceRepository.findById(reponse.id()).orElseThrow().getStatut())
                 .isEqualTo(Exercice.Statut.EN_ATTENTE_RELECTURE);
     }
 
     @Test
-    void unExerciceDejaAssigneNaPasDeSecondRelecteur() { // RG5
-        marquerPresent(2L);
-        marquerPresent(3L);
-        ExerciceResponse premiere = exerciceService.deposer(
+    void unePresenceQuiArriveApresLaCompleteAvecUnSecondRelecteurDifferent() { // RG5 révisée + RG6
+        marcarPresent(2L);
+        ExerciceResponse reponse = exerciceService.deposer(
                 new DeposerExerciceRequest(session.getId(), 1L, LIEN));
-        Long relecteurInitial = relectureRepository.findByExerciceId(premiere.id()).orElseThrow().getRelecteurId();
+        assertThat(relectures(reponse.id())).hasSize(1);
 
-        presenceService.marquer(new MarquerPresenceRequest("ABCDEF", 4L)); // nouvel arrivant
+        presenceService.marquer(new MarquerPresenceRequest("ABCDEF", 3L)); // nouvel arrivant
 
-        List<Relecture> relectures = relectureRepository.findAll().stream()
-                .filter(r -> r.getExerciceId().equals(premiere.id()))
-                .toList();
-        assertThat(relectures).hasSize(1);
-        assertThat(relectures.get(0).getRelecteurId()).isEqualTo(relecteurInitial);
+        // L'exercice incomplet est complété, et le second n'est pas le premier
+        assertThat(relectures(reponse.id()))
+                .extracting(Relecture::getRelecteurId)
+                .containsExactlyInAnyOrder(2L, 3L);
     }
 
     @Test
-    void deuxExercicesSontAssignesAUnRelecteurDifferentDeLEurAuteur() { // RG4 + RG5
-        marquerPresent(2L);
+    void aucunTroisiemeRelecteurNestAjouteApresLeSecond() { // RG5 révisée : au plus deux
+        marcarPresent(2L);
+        marcarPresent(3L);
+        ExerciceResponse reponse = exerciceService.deposer(
+                new DeposerExerciceRequest(session.getId(), 1L, LIEN));
+        assertThat(relectures(reponse.id())).hasSize(2);
+
+        presenceService.marquer(new MarquerPresenceRequest("ABCDEF", 4L));
+
+        // L'exercice est complet : le nouvel arrivant ne s'y voit pas ajouter
+        assertThat(relectures(reponse.id())).hasSize(2);
+    }
+
+    @Test
+    void deuxExercicesSontAssignesADesRelecteursDistinctsDeLEurAuteur() { // RG4 + RG5 révisée
+        marcarPresent(2L);
+        marcarPresent(3L);
+        marcarPresent(4L);
         ExerciceResponse premier = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 1L, LIEN));
         ExerciceResponse second = exerciceService.deposer(new DeposerExerciceRequest(session.getId(), 3L, LIEN));
 
         assertThat(premier.statut()).isEqualTo("EN_ATTENTE_RELECTURE");
         assertThat(second.statut()).isEqualTo("EN_ATTENTE_RELECTURE");
-        assertThat(relectureRepository.count()).isEqualTo(2);
+        assertThat(relectureRepository.count()).isEqualTo(4); // 2 par exercice
         for (Relecture relecture : relectureRepository.findAll()) {
+            // L'étudiant 3 est l'auteur du second exercice : il ne peut pas le relire,
+            // mais il peut relire le premier.
             Long auteur = relecture.getExerciceId().equals(premier.id()) ? 1L : 3L;
             assertThat(relecture.getRelecteurId()).isNotEqualTo(auteur);
         }
